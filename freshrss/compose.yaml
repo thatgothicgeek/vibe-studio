@@ -1,0 +1,18 @@
+name: vibesignal
+
+services:
+  freshrss:
+    image: freshrss/freshrss:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      TZ: America/New_York
+      CRON_MIN: "1,31"
+    volumes:
+      - freshrss_data:/var/www/FreshRSS/data
+      - freshrss_extensions:/var/www/FreshRSS/extensions
+
+volumes:
+  freshrss_data:
+  freshrss_extensions:
