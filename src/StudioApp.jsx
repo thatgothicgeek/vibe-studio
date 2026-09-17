@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 import './Studio.css'
+import { fetchDashboardResource, parseDashboard, parseHealth } from './dashboardApi'
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard },
@@ -111,20 +112,95 @@ function SectionLabel({ children, action }) {
   return <div className="section-label"><span>{children}</span>{action && <button className="text-action">{action}<ArrowUpRight size={13} /></button>}</div>
 }
 
+function useDashboardResource(url, parse) {
+  const [resource, setResource] = useState({ status: 'loading', data: null })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+    const timeout = window.setTimeout(() => controller.abort(), 10000)
+
+    fetchDashboardResource(url, controller.signal, parse)
+      .then((data) => { if (active) setResource({ status: 'ready', data }) })
+      .catch(() => { if (active) setResource({ status: 'error', data: null }) })
+      .finally(() => window.clearTimeout(timeout))
+
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [url, parse])
+
+  return resource
+}
+
 function Dashboard() {
+  const dashboard = useDashboardResource('/api/dashboard', parseDashboard)
+  const health = useDashboardResource('/api/health', parseHealth)
+  const signal = dashboard.data?.top_signal
+  const dashboardLoading = dashboard.status === 'loading'
+  const dashboardMessage = dashboardLoading ? 'Loading…' : 'Unavailable'
+  const healthLoading = health.status === 'loading'
+  const coreHealthy = health.data?.coreHealthy === true
+  const databaseHealthy = health.data?.databaseHealthy === true
+  const healthMessage = healthLoading ? 'Checking…' : 'UNAVAILABLE'
+
   return (
     <div className="page-stack">
-      <section className="welcome-row"><div><h2>Good morning, James.</h2><p>The signal field is quiet. Here&apos;s what deserves your attention.</p></div><div className="pulse-readout"><Activity size={15} /><span>ACTIVE SIGNALS</span><b>31</b><small>in the field</small></div></section>
-      <section className="signal-hero">
-        <div className="signal-hero-copy"><span className="eyebrow cyan-text">TOP SIGNAL / MOST VIABLE STORY</span><h3>The shape of what comes next</h3><p>A placeholder editorial brief for the strongest emerging signal in the field. This region will become the Studio&apos;s highest-confidence story recommendation.</p><div className="signal-meta"><span className="meta-category">Category / TV</span><span>Viability / 87%</span><span>Sources / 14</span><span>Captured / 12 min ago</span><span>Updated / just now</span></div><div className="signal-badges"><span>EMERGING</span><span>EDITORIAL REVIEW</span></div></div>
-        <div className="signal-score"><span>87</span><small>VIABILITY</small><div className="score-line"><i /></div><button className="outline-button">Open signal <ChevronRight size={14} /></button></div>
+      <section className="welcome-row">
+        <div><h2>Good morning, James.</h2><p>Here&apos;s what deserves your attention.</p></div>
+        <div className="pulse-readout" aria-live="polite" aria-busy={dashboardLoading}>
+          <Activity size={15} /><span>ACTIVE SIGNALS</span>
+          {dashboard.data ? <b>{dashboard.data.active_signal_count}</b> : <span>{dashboardMessage}</span>}
+          <small>in the field</small>
+        </div>
+      </section>
+      <section className="signal-hero" aria-live="polite" aria-busy={dashboardLoading}>
+        <div className="signal-hero-copy">
+          <span className="eyebrow cyan-text">TOP SIGNAL / MOST VIABLE STORY</span>
+          <h3>{signal?.headline ?? (dashboardLoading ? 'Loading top signal…' : dashboard.status === 'error' ? 'Top signal unavailable' : 'No top signal yet')}</h3>
+          {signal ? <>
+            {signal.source_name && <p>Lead source / {signal.source_name}</p>}
+            <div className="signal-meta">
+              {signal.category && <span className="meta-category">Category / {signal.category}</span>}
+              <span>Viability / {signal.viability_score}%</span>
+              <span>Sources / {signal.source_count}</span>
+              {signal.story_type && <span>Story type / {signal.story_type}</span>}
+            </div>
+            <div className="signal-badges">
+              {signal.lifecycle_state && <span>{signal.lifecycle_state}</span>}
+              {signal.cluster_state && signal.cluster_state !== signal.lifecycle_state && <span>{signal.cluster_state}</span>}
+            </div>
+          </> : <p>{dashboardLoading ? 'Checking the signal field.' : dashboard.status === 'error' ? 'We couldn’t load signals. Please try again later.' : 'There is no top signal to show right now.'}</p>}
+        </div>
+        <div className="signal-score">
+          <span>{signal?.viability_score ?? '—'}</span><small>VIABILITY</small>
+          <div className="score-line"><i style={{ width: signal ? `${signal.viability_score}%` : '0%' }} /></div>
+          <button className="outline-button" disabled title="Signal detail is not available yet">Open signal <ChevronRight size={14} /></button>
+        </div>
       </section>
       <div className="dashboard-grid">
-        <section className="panel category-panel"><SectionLabel action="View all">CATEGORY SIGNALS</SectionLabel>{categorySignals.map(({ name, count, color, Icon }) => <div className="category-line" key={name}><Icon className={`category-icon ${color}`} size={20} strokeWidth={1.35} aria-hidden="true" /><span>{name}</span><small>{count}</small><ChevronRight size={16} /></div>)}</section>
+        <section className="panel category-panel" aria-live="polite" aria-busy={dashboardLoading}>
+          <SectionLabel action="View all">CATEGORY SIGNALS</SectionLabel>
+          {categorySignals.map(({ name, color, Icon }) => <div className="category-line" key={name}>
+            <Icon className={`category-icon ${color}`} size={20} strokeWidth={1.35} aria-hidden="true" /><span>{name}</span>
+            <small>{dashboard.data ? `${dashboard.data.category_signal_counts[name]} signals` : dashboardMessage}</small><ChevronRight size={16} />
+          </div>)}
+        </section>
         <section className="panel"><SectionLabel action="Open desk">NEWS DESK STATUS</SectionLabel><div className="desk-stat"><span className="desk-number">04</span><div><b>Stories in motion</b><p>Across the editorial workflow</p></div></div><div className="mini-pipeline"><span style={{ '--width': '48%' }}>Signal <b>04</b></span><span style={{ '--width': '30%' }}>Developing <b>—</b></span><span style={{ '--width': '18%' }}>Draft <b>—</b></span><span style={{ '--width': '8%' }}>Ready <b>—</b></span><span style={{ '--width': '3%' }}>Published <b>—</b></span></div></section>
       </div>
       <div className="dashboard-grid bottom-grid">
-        <section className="panel core-panel"><SectionLabel>SYSTEM / CORE STATUS</SectionLabel><div className="core-status"><div className="core-status-icon"><Boxes size={22} /></div><div><b>Framework ready</b><p>Studio shell is online. Core connection will appear here in a future phase.</p></div></div><div className="status-rule"><span>Studio interface</span><b>ONLINE</b></div><div className="status-rule"><span>Vibe Core connection</span><b className="muted-status">NOT CONNECTED</b></div></section>
+        <section className="panel core-panel" aria-live="polite" aria-busy={healthLoading}>
+          <SectionLabel>SYSTEM / CORE STATUS</SectionLabel>
+          <div className="core-status"><div className="core-status-icon"><Boxes size={22} /></div><div>
+            <b>{healthLoading ? 'Checking Core…' : coreHealthy && databaseHealthy ? 'Core healthy' : 'Core health unavailable'}</b>
+            <p>{healthLoading ? 'Checking the API and database connection.' : health.status === 'error' ? 'We couldn’t check Core health. Please try again later.' : coreHealthy && databaseHealthy ? 'Core API and database are healthy.' : 'Core or database is not reporting healthy. Please try again later.'}</p>
+          </div></div>
+          <div className="status-rule"><span>Studio interface</span><b>ONLINE</b></div>
+          <div className="status-rule"><span>Vibe Core / API</span><b className={coreHealthy ? undefined : 'muted-status'}>{coreHealthy ? 'HEALTHY' : healthMessage}</b></div>
+          <div className="status-rule"><span>Database</span><b className={databaseHealthy ? undefined : 'muted-status'}>{databaseHealthy ? 'HEALTHY' : healthMessage}</b></div>
+        </section>
         <section className="panel"><SectionLabel action="See activity">RECENT ACTIVITY</SectionLabel><div className="activity-list">{activity.map(([title, copy, time]) => <div className="activity-item" key={title}><span className="activity-icon"><CircleDot size={13} /></span><div><b>{title}</b><p>{copy}</p></div><time>{time}</time></div>)}</div></section>
       </div>
     </div>
