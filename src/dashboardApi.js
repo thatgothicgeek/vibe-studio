@@ -20,6 +20,7 @@ export function parseDashboard(data) {
       throw new Error('Invalid top signal')
     }
     topSignal = {
+      signal_id: optionalText(signal.signal_id),
       headline: signal.headline,
       category: optionalText(signal.category),
       viability_score: signal.viability_score,
@@ -38,6 +39,36 @@ export function parseHealth(data) {
     throw new Error('Invalid health response')
   }
   return { coreHealthy: data.status === 'ok', databaseHealthy: data.database === 'ok' }
+}
+
+export function parseSignal(data) {
+  if (!isObject(data) || !optionalText(data.signal_id) || !optionalText(data.headline)) {
+    throw new Error('Invalid signal response')
+  }
+  const lead = isObject(data.lead) ? data.lead : {}
+  return {
+    signal_id: data.signal_id,
+    headline: data.headline,
+    category: optionalText(data.category),
+    viability_score: typeof data.viability_score === 'number' && Number.isFinite(data.viability_score)
+      && data.viability_score >= 0 && data.viability_score <= 100 ? data.viability_score : null,
+    source_count: isCount(data.source_count) ? data.source_count : null,
+    story_type: optionalText(data.story_type),
+    lifecycle_state: optionalText(data.lifecycle_state),
+    cluster_state: optionalText(data.cluster_state),
+    updated_at: optionalText(data.updated_at),
+    lead: Object.fromEntries(['title', 'source_name', 'effective_at', 'timestamp_basis', 'warning']
+      .map((key) => [key, optionalText(lead[key])])),
+    articles: Array.isArray(data.articles) ? data.articles.filter(isObject).map((article) =>
+      Object.fromEntries(['item_id', 'title', 'url', 'source_name', 'published_at', 'discovered_at', 'item_role']
+        .map((key) => [key, optionalText(article[key])])) ) : [],
+  }
+}
+
+export async function fetchSignal(signalId, signal) {
+  const data = await fetchDashboardResource(`/api/signals/${encodeURIComponent(signalId)}`, signal, parseSignal)
+  if (data.signal_id !== signalId) throw new Error('Signal response does not match request')
+  return data
 }
 
 export async function fetchDashboardResource(url, signal, parse) {

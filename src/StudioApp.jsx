@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Activity,
   ArrowUpRight,
@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 import './Studio.css'
+import SignalDetail from './SignalDetail'
 import { fetchDashboardResource, parseDashboard, parseHealth } from './dashboardApi'
 
 const navItems = [
@@ -102,7 +103,7 @@ function Header({ page, onMenu }) {
       <div className="header-tools">
         <span className="header-date">TUE / 16 SEP 2026</span>
         <span className="header-status"><span className="status-dot" /> SYSTEMS NOMINAL</span>
-        <button className="profile-chip" aria-label="Open account menu">JD</button>
+        {page === 'Signal Detail' ? <span className="profile-chip profile-metadata" aria-label="Account: JD">JD</span> : <button className="profile-chip" aria-label="Open account menu">JD</button>}
       </div>
     </header>
   )
@@ -135,7 +136,7 @@ function useDashboardResource(url, parse) {
   return resource
 }
 
-function Dashboard() {
+function Dashboard({ onOpenSignal }) {
   const dashboard = useDashboardResource('/api/dashboard', parseDashboard)
   const health = useDashboardResource('/api/health', parseHealth)
   const signal = dashboard.data?.top_signal
@@ -177,7 +178,7 @@ function Dashboard() {
         <div className="signal-score">
           <span>{signal?.viability_score ?? '—'}</span><small>VIABILITY</small>
           <div className="score-line"><i style={{ width: signal ? `${signal.viability_score}%` : '0%' }} /></div>
-          <button className="outline-button" disabled title="Signal detail is not available yet">Open signal <ChevronRight size={14} /></button>
+          <button className="outline-button" disabled={!signal?.signal_id} onClick={() => onOpenSignal(signal.signal_id)}>Open signal <ChevronRight size={14} /></button>
         </div>
       </section>
       <div className="dashboard-grid">
@@ -220,8 +221,8 @@ function EmptyPage({ page, icon: Icon, label, copy, action }) {
   return <div className="page-stack empty-page"><section className="intro-block"><span className="eyebrow purple-text">STUDIO MODULE / V1</span><h2>{page}</h2><p>{copy}</p></section><section className="empty-module"><div className="empty-module-icon"><Icon size={28} /></div><span className="eyebrow">{label}</span><h3>This workspace is ready for its next layer.</h3><p>Structure is in place so real {page.toLowerCase()} data can slot in later without changing the Studio shell.</p>{action && <button className="outline-button">{action} <ArrowUpRight size={14} /></button>}</section></div>
 }
 
-function StudioPage({ page }) {
-  if (page === 'Dashboard') return <Dashboard />
+function StudioPage({ page, onOpenSignal }) {
+  if (page === 'Dashboard') return <Dashboard onOpenSignal={onOpenSignal} />
   if (page === 'Discover') return <Discover />
   if (page === 'News Desk') return <NewsDesk />
   if (page === 'Create') return <EmptyPage page="Create" icon={FilePlus2} label="COMPOSER ENTRY POINT" copy="The Composer will be the place to shape signals into editorial work, with a clear path from first note to final story." action="Open Composer" />
@@ -230,15 +231,45 @@ function StudioPage({ page }) {
   return <EmptyPage page={page} icon={Icon} label={label} copy={copy} />
 }
 
+function routeFromPath() {
+  const match = window.location.pathname.match(/^\/studio\/signals\/([^/]+)\/?$/)
+  if (match) {
+    try { return { page: 'Signal Detail', signalId: decodeURIComponent(match[1]) } }
+    catch { return { page: 'Signal Detail', signalId: match[1] } }
+  }
+  const slug = window.location.pathname.replace(/^\/studio\/?/, '').replace(/\/$/, '').replace(/-/g, ' ')
+  return { page: navItems.find((item) => item.label.toLowerCase() === slug.toLowerCase())?.label || 'Dashboard' }
+}
+
 function StudioApp() {
-  const pageFromPath = () => { const slug = window.location.pathname.replace(/^\/studio\/?/, '').replace(/-/g, ' '); return navItems.find((item) => item.label.toLowerCase() === slug.toLowerCase())?.label || 'Dashboard' }
-  const [activePage, setActivePage] = useState(pageFromPath)
+  const [route, setRoute] = useState(routeFromPath)
   const [menuOpen, setMenuOpen] = useState(false)
+  const contentRef = useRef(null)
 
-  useEffect(() => { const onPopState = () => setActivePage(pageFromPath()); window.addEventListener('popstate', onPopState); return () => window.removeEventListener('popstate', onPopState) }, [])
-  function navigate(page) { const slug = page.toLowerCase().replace(/ /g, '-'); window.history.pushState({}, '', `/studio/${slug}`); setActivePage(page); setMenuOpen(false) }
+  useEffect(() => {
+    const onPopState = () => { setRoute(routeFromPath()); setMenuOpen(false) }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
-  return <div className="studio-app"><Sidebar activePage={activePage} onNavigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} /><div className="studio-main"><Header page={activePage} onMenu={() => setMenuOpen(true)} /><main className="studio-content"><StudioPage page={activePage} /></main><footer className="studio-footer"><span>VIBE STUDIO / INTERNAL CONTROL SURFACE</span><span>PUBLIC SITE <a href="/">THEGEEK.GUIDE <ArrowUpRight size={12} /></a></span></footer></div></div>
+  useEffect(() => {
+    contentRef.current?.focus({ preventScroll: true })
+    window.scrollTo(0, 0)
+  }, [route])
+
+  function navigateTo(path) {
+    if (window.location.pathname !== path) window.history.pushState({}, '', path)
+    setRoute(routeFromPath())
+    setMenuOpen(false)
+  }
+  function navigate(page) { navigateTo(`/studio/${page.toLowerCase().replace(/ /g, '-')}`) }
+  function openSignal(signalId) { navigateTo(`/studio/signals/${encodeURIComponent(signalId)}`) }
+
+  return <div className="studio-app"><Sidebar activePage={route.page === 'Signal Detail' ? 'Dashboard' : route.page} onNavigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} /><div className="studio-main"><Header page={route.page} onMenu={() => setMenuOpen(true)} /><main className="studio-content" ref={contentRef} tabIndex={-1} aria-label={route.page}>
+    {route.page === 'Signal Detail'
+      ? <SignalDetail key={route.signalId} signalId={route.signalId} onBack={() => navigate('Dashboard')} />
+      : <StudioPage page={route.page} onOpenSignal={openSignal} />}
+  </main><footer className="studio-footer"><span>VIBE STUDIO / INTERNAL CONTROL SURFACE</span><span>PUBLIC SITE <a href="/">THEGEEK.GUIDE <ArrowUpRight size={12} /></a></span></footer></div></div>
 }
 
 export default StudioApp
