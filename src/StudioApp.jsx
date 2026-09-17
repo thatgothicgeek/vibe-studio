@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import './Studio.css'
 import SignalDetail from './SignalDetail'
-import { fetchDashboardResource, parseDashboard, parseHealth } from './dashboardApi'
+import { fetchDashboardResource, fetchSignals, parseDashboard, parseHealth } from './dashboardApi'
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard },
@@ -208,8 +208,111 @@ function Dashboard({ onOpenSignal }) {
   )
 }
 
-function Discover() {
-  return <div className="page-stack"><section className="intro-block"><span className="eyebrow cyan-text">SIGNAL FIELD / CURATED VIEW</span><h2>Discover what&apos;s moving.</h2><p>A future-facing layout for incoming signals, editorial digests, and the collections that give them context.</p></section><section className="discover-feature-grid"><div className="feature-placeholder"><Sparkles size={22} /><span>FEATURED SIGNAL</span><b>Signal cards will surface here</b><p>High-potential stories with context, velocity, and editorial notes.</p></div><div className="feature-placeholder alt"><Compass size={22} /><span>DAILY DIGEST</span><b>A concise read on the field</b><p>Digest sections will group the day&apos;s most meaningful movement.</p></div></section><section className="panel"><SectionLabel action="Manage categories">CATEGORY ROWS</SectionLabel><div className="discover-rows">{categorySignals.map((item) => <div key={item.name}><span className={`category-bar ${item.color}`} /><b>{item.name}</b><small>{item.count}</small><ChevronRight size={14} /></div>)}</div></section><section className="panel empty-panel"><FolderOpen size={22} /><div><SectionLabel>COLLECTIONS</SectionLabel><p>Saved editorial collections will live here.</p></div><button className="outline-button">New collection <ArrowUpRight size={14} /></button></section></div>
+function displayCategory(category) {
+  if (category === 'Gaming') return 'Games'
+  if (category === 'Technology') return 'Tech'
+  return category || 'Unresolved'
+}
+
+function Discover({ onOpenSignal }) {
+  const [signals, setSignals] = useState({ status: 'loading', data: [] })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+    const timeout = window.setTimeout(() => controller.abort(), 10000)
+
+    fetchSignals(controller.signal, 24)
+      .then((data) => { if (active) setSignals({ status: 'ready', data }) })
+      .catch(() => { if (active) setSignals({ status: 'error', data: [] }) })
+      .finally(() => window.clearTimeout(timeout))
+
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [])
+
+  const featured = signals.data[0] ?? null
+  const feed = signals.data.slice(1)
+  const loading = signals.status === 'loading'
+  const categoryCounts = Object.fromEntries(categorySignals.map(({ name }) => [name, 0]))
+
+  for (const signal of signals.data) {
+    const category = displayCategory(signal.category)
+    if (category in categoryCounts) categoryCounts[category] += 1
+  }
+
+  return (
+    <div className="page-stack">
+      <section className="intro-block">
+        <span className="eyebrow cyan-text">SIGNAL FIELD / LIVE VIEW</span>
+        <h2>Discover what&apos;s moving.</h2>
+        <p>Live signals from Vibe Core, ranked for editorial review and ready to inspect.</p>
+      </section>
+
+      <section className="discover-feature-grid" aria-live="polite" aria-busy={loading}>
+        <div className="feature-placeholder discover-feature-live">
+          <Sparkles size={22} />
+          <span>FEATURED SIGNAL</span>
+          <b>{featured?.headline ?? (loading ? 'Loading featured signal…' : signals.status === 'error' ? 'Signal field unavailable' : 'No active signals')}</b>
+          {featured ? <>
+            <p>{featured.lead.source_name ? `Lead source / ${featured.lead.source_name}` : 'Lead source unavailable'}</p>
+            <div className="discover-feature-meta">
+              <span>{displayCategory(featured.category)}</span>
+              <span>{featured.viability_score ?? '—'} viability</span>
+              <span>{featured.source_count ?? '—'} sources</span>
+            </div>
+            <button className="outline-button" onClick={() => onOpenSignal(featured.signal_id)}>Open signal <ChevronRight size={14} /></button>
+          </> : <p>{signals.status === 'error' ? 'We couldn’t load signals from Core. Try again after checking the local API.' : 'Checking the signal field.'}</p>}
+        </div>
+
+        <div className="feature-placeholder alt discover-future">
+          <Compass size={22} />
+          <span>DAILY DIGEST / FUTURE</span>
+          <b>A concise read on the field</b>
+          <p>Compass-powered daily digests will group the day&apos;s most meaningful movement here.</p>
+        </div>
+      </section>
+
+      <section className="panel discover-feed" aria-live="polite" aria-busy={loading}>
+        <SectionLabel>LIVE SIGNALS</SectionLabel>
+        {loading && <p className="discover-state">Loading signals from Core…</p>}
+        {signals.status === 'error' && <p className="discover-state">Signal feed unavailable. Check the local Core API and refresh.</p>}
+        {signals.status === 'ready' && signals.data.length === 0 && <p className="discover-state">No active signals are available right now.</p>}
+        {feed.map((signal) => (
+          <button className="discover-signal-row" key={signal.signal_id} onClick={() => onOpenSignal(signal.signal_id)}>
+            <span className="discover-signal-copy">
+              <small>{displayCategory(signal.category)}{signal.story_type ? ` / ${signal.story_type}` : ''}</small>
+              <b>{signal.headline}</b>
+              <span>{signal.lead.source_name ? `Lead / ${signal.lead.source_name}` : 'Lead source unavailable'} · {signal.source_count ?? '—'} sources</span>
+            </span>
+            <span className="discover-row-score"><b>{signal.viability_score ?? '—'}</b><small>VIABILITY</small></span>
+            <ChevronRight size={17} aria-hidden="true" />
+          </button>
+        ))}
+      </section>
+
+      <section className="panel">
+        <SectionLabel>CATEGORY SNAPSHOT</SectionLabel>
+        <div className="discover-rows">
+          {categorySignals.map((item) => (
+            <div key={item.name}>
+              <span className={`category-bar ${item.color}`} />
+              <b>{item.name}</b>
+              <small>{signals.status === 'ready' ? `${categoryCounts[item.name]} in current feed` : loading ? 'Loading…' : 'Unavailable'}</small>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel empty-panel discover-future">
+        <FolderOpen size={22} />
+        <div><SectionLabel>COLLECTIONS / FUTURE</SectionLabel><p>Saved editorial collections will live here once collection tools are connected.</p></div>
+      </section>
+    </div>
+  )
 }
 
 function NewsDesk() {
@@ -223,7 +326,7 @@ function EmptyPage({ page, icon: Icon, label, copy, action }) {
 
 function StudioPage({ page, onOpenSignal }) {
   if (page === 'Dashboard') return <Dashboard onOpenSignal={onOpenSignal} />
-  if (page === 'Discover') return <Discover />
+  if (page === 'Discover') return <Discover onOpenSignal={onOpenSignal} />
   if (page === 'News Desk') return <NewsDesk />
   if (page === 'Create') return <EmptyPage page="Create" icon={FilePlus2} label="COMPOSER ENTRY POINT" copy="The Composer will be the place to shape signals into editorial work, with a clear path from first note to final story." action="Open Composer" />
   const moduleData = { Sources: [Radio, 'SOURCE LIBRARY', 'A future home for feeds, publications, and the trusted inputs behind the signal field.'], Audience: [Users, 'AUDIENCE INTELLIGENCE', 'A future home for reader patterns, feedback, and the people we are making this for.'], Distribution: [BarChart3, 'PUBLICATION CONTROL', 'A future home for channels, schedules, and the final handoff to Publications.'], System: [Settings2, 'SYSTEM CONFIGURATION', 'A future home for Studio preferences, permissions, and the health of connected services.'] }

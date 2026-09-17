@@ -65,6 +65,16 @@ export function parseSignal(data) {
   }
 }
 
+export function parseSignals(data) {
+  if (!Array.isArray(data)) throw new Error('Invalid signals response')
+  return data.map((signal) => parseSignal(signal))
+}
+
+export async function fetchSignals(signal, limit = 24) {
+  const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 100 ? limit : 24
+  return fetchDashboardResource(`/api/signals?limit=${safeLimit}`, signal, parseSignals)
+}
+
 export async function fetchSignal(signalId, signal) {
   const data = await fetchDashboardResource(`/api/signals/${encodeURIComponent(signalId)}`, signal, parseSignal)
   if (data.signal_id !== signalId) throw new Error('Signal response does not match request')
