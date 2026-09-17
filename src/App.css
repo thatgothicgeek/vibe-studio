@@ -199,6 +199,19 @@ main {
   border-radius: 16px;
   background: #090a14e8;
   box-shadow: 0 12px 36px #03030b73;
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+  animation: signup-pulse 4.8s ease-in-out infinite;
+}
+
+.signup-controls:focus-within {
+  border-color: #a795f0;
+  background: #101020f2;
+  box-shadow:
+    0 0 0 1px #d768d866,
+    0 0 20px #9a65e65c,
+    0 0 34px #62d6e230,
+    0 14px 40px #03030b8c;
+  animation: none;
 }
 .signup input,
 .signup button { min-height: 52px; }
@@ -240,8 +253,10 @@ main {
 
 .button-arrow { margin-left: 10px; }
 .signup button:hover { filter: brightness(1.12); }
+.signup button:active { filter: brightness(1.2); transform: scale(.98); }
 .signup button:disabled { cursor: wait; filter: saturate(.65); opacity: .78; }
-.signup :is(input, button):focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
+.signup input:focus-visible { outline: none; }
+.signup button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
 .signup-note { min-height: 22px; margin: 10px 0 0; color: #918a9b; font-size: 11px; line-height: 1.5; }
 .signup-error { color: #ffabbf; }
 .signup-success { margin-inline: auto; }
@@ -274,6 +289,17 @@ footer {
   38% { opacity: .66; filter: brightness(1.25) drop-shadow(0 0 2px #c9b8ff); }
   67% { opacity: .32; filter: brightness(.9) drop-shadow(0 0 1px #86dce5); }
   100% { opacity: .78; filter: brightness(1.5) drop-shadow(0 0 3px #ffffff8a); }
+}
+
+@keyframes signup-pulse {
+  0%, 100% {
+    border-color: #696277;
+    box-shadow: 0 12px 36px #03030b73, 0 0 0 #9b73da00;
+  }
+  50% {
+    border-color: #8d77a1;
+    box-shadow: 0 12px 36px #03030b73, 0 0 18px #9b73da38, 0 0 28px #6bd5df18;
+  }
 }
 
 @media (max-width: 600px) {

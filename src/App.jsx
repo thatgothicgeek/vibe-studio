@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Clapperboard, Gamepad2, Laptop, Mail, Tv } from 'lucide-react'
+import { BookOpen, Clapperboard, Laptop, Mail, Orbit, Tv } from 'lucide-react'
 import './App.css'
 
 const categories = [
@@ -7,7 +7,7 @@ const categories = [
   { label: 'MOVIES', Icon: Clapperboard },
   { label: 'COMICS', Icon: BookOpen },
   { label: 'TECH', Icon: Laptop },
-  { label: 'BEYOND', Icon: Gamepad2 },
+  { label: 'BEYOND', Icon: Orbit },
 ]
 
 const KIT_FORM_ENDPOINT = 'https://app.kit.com/forms/9927128/subscriptions'
