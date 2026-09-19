@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 function loadHubToken() {
-  const environmentToken = process.env.VIBE_HUB_SYNC_TOKEN?.trim()
+  const environmentToken = process.env.STUDIO_HUB_READ_TOKEN?.trim() || process.env.VIBE_HUB_SYNC_TOKEN?.trim()
 
   if (environmentToken) return environmentToken
 
@@ -27,7 +28,7 @@ function loadHubToken() {
 }
 
 export default defineConfig(({ command }) => {
-  const hubToken = loadHubToken()
+  const hubToken = command === 'serve' ? loadHubToken() : ''
 
   if (command === 'serve' && !hubToken) {
     throw new Error(
