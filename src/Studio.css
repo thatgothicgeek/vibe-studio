@@ -293,3 +293,26 @@
   .discover-row-score { min-width: 52px; }
   .discover-row-score > b { font-size: 22px; }
 }
+
+
+/* Signal rank tiers */
+.signal-score.rank-s span,
+.discover-row-score.rank-s > b { color: var(--studio-magenta); }
+
+.signal-score.rank-a span,
+.discover-row-score.rank-a > b { color: var(--studio-purple); }
+
+.signal-score.rank-b span,
+.discover-row-score.rank-b > b { color: var(--studio-cyan); }
+
+.signal-score.rank-c span,
+.discover-row-score.rank-c > b { color: #6f8cff; }
+
+.signal-score.rank-d span,
+.discover-row-score.rank-d > b { color: #807a96; }
+
+.signal-score.rank-e span,
+.discover-row-score.rank-e > b { color: #686a76; }
+
+.signal-score.rank-f span,
+.discover-row-score.rank-f > b { color: #4d4f59; }

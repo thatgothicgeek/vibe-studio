@@ -45,8 +45,8 @@ export default function SignalDetail({ signalId, onBack }) {
   const signal = resource.data
   return <div className="page-stack signal-detail">
     <button className="outline-button signal-back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />Back to Dashboard</button>
-    {resource.status === 'loading' && <section className="panel signal-unavailable" role="status" aria-busy="true"><h2>Loading signal…</h2><p>Retrieving editorial context from Core.</p></section>}
-    {resource.status === 'error' && <section className="panel signal-unavailable" role="alert"><h2>Signal unavailable</h2><p>We couldn’t load this signal. It may no longer be available, or Core may be temporarily unreachable. Return to Dashboard and try again.</p></section>}
+    {resource.status === 'loading' && <section className="panel signal-unavailable" role="status" aria-busy="true"><h2>Loading signal…</h2><p>Retrieving editorial context from Vibe Hub.</p></section>}
+    {resource.status === 'error' && <section className="panel signal-unavailable" role="alert"><h2>Signal unavailable</h2><p>We couldn’t load this signal. It may no longer be available, or Vibe Hub may be temporarily unreachable. Return to Dashboard and try again.</p></section>}
     {signal && <>
       <section className="signal-hero signal-detail-hero" aria-labelledby="signal-headline">
         <div className="signal-hero-copy">
@@ -54,8 +54,8 @@ export default function SignalDetail({ signalId, onBack }) {
           <h2 id="signal-headline">{signal.headline}</h2>
           <p>{signal.category ?? 'Category not assigned'}{signal.story_type && <> / {signal.story_type}</>}</p>
         </div>
-        <div className="signal-score"><span>{signal.viability_score ?? '—'}</span><small>VIABILITY / 100</small>
-          {signal.viability_score !== null && <div className="score-line" aria-hidden="true"><i style={{ width: `${signal.viability_score}%` }} /></div>}
+        <div className={`signal-score rank-${signal.rank_tier?.toLowerCase() ?? 'unranked'}`}>
+          <span>{signal.rank_tier ?? '—'}</span><small>SIGNAL RANK</small>
         </div>
       </section>
       <section className="panel" aria-labelledby="signal-context"><h3 className="section-label" id="signal-context">EDITORIAL CONTEXT</h3>

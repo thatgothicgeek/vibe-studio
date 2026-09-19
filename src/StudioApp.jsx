@@ -143,7 +143,7 @@ function Dashboard({ onOpenSignal }) {
   const dashboardLoading = dashboard.status === 'loading'
   const dashboardMessage = dashboardLoading ? 'Loading…' : 'Unavailable'
   const healthLoading = health.status === 'loading'
-  const coreHealthy = health.data?.coreHealthy === true
+  const hubHealthy = health.data?.hubHealthy === true
   const databaseHealthy = health.data?.databaseHealthy === true
   const healthMessage = healthLoading ? 'Checking…' : 'UNAVAILABLE'
 
@@ -159,13 +159,13 @@ function Dashboard({ onOpenSignal }) {
       </section>
       <section className="signal-hero" aria-live="polite" aria-busy={dashboardLoading}>
         <div className="signal-hero-copy">
-          <span className="eyebrow cyan-text">TOP SIGNAL / MOST VIABLE STORY</span>
+          <span className="eyebrow cyan-text">TOP SIGNAL / HIGHEST RANKED STORY</span>
           <h3>{signal?.headline ?? (dashboardLoading ? 'Loading top signal…' : dashboard.status === 'error' ? 'Top signal unavailable' : 'No top signal yet')}</h3>
           {signal ? <>
             {signal.source_name && <p>Lead source / {signal.source_name}</p>}
             <div className="signal-meta">
               {signal.category && <span className="meta-category">Category / {signal.category}</span>}
-              <span>Viability / {signal.viability_score}%</span>
+              <span>Rank / {signal.rank_tier}</span>
               <span>Sources / {signal.source_count}</span>
               {signal.story_type && <span>Story type / {signal.story_type}</span>}
             </div>
@@ -175,9 +175,8 @@ function Dashboard({ onOpenSignal }) {
             </div>
           </> : <p>{dashboardLoading ? 'Checking the signal field.' : dashboard.status === 'error' ? 'We couldn’t load signals. Please try again later.' : 'There is no top signal to show right now.'}</p>}
         </div>
-        <div className="signal-score">
-          <span>{signal?.viability_score ?? '—'}</span><small>VIABILITY</small>
-          <div className="score-line"><i style={{ width: signal ? `${signal.viability_score}%` : '0%' }} /></div>
+        <div className={`signal-score rank-${signal?.rank_tier?.toLowerCase() ?? 'unranked'}`}>
+          <span>{signal?.rank_tier ?? '—'}</span><small>SIGNAL RANK</small>
           <button className="outline-button" disabled={!signal?.signal_id} onClick={() => onOpenSignal(signal.signal_id)}>Open signal <ChevronRight size={14} /></button>
         </div>
       </section>
@@ -195,11 +194,11 @@ function Dashboard({ onOpenSignal }) {
         <section className="panel core-panel" aria-live="polite" aria-busy={healthLoading}>
           <SectionLabel>SYSTEM / CORE STATUS</SectionLabel>
           <div className="core-status"><div className="core-status-icon"><Boxes size={22} /></div><div>
-            <b>{healthLoading ? 'Checking Core…' : coreHealthy && databaseHealthy ? 'Core healthy' : 'Core health unavailable'}</b>
-            <p>{healthLoading ? 'Checking the API and database connection.' : health.status === 'error' ? 'We couldn’t check Core health. Please try again later.' : coreHealthy && databaseHealthy ? 'Core API and database are healthy.' : 'Core or database is not reporting healthy. Please try again later.'}</p>
+            <b>{healthLoading ? 'Checking Hub…' : hubHealthy && databaseHealthy ? 'Hub healthy' : 'Hub health unavailable'}</b>
+            <p>{healthLoading ? 'Checking the API and database connection.' : health.status === 'error' ? 'We couldn’t check Hub health. Please try again later.' : hubHealthy && databaseHealthy ? 'Hub API and database are healthy.' : 'Hub or database is not reporting healthy. Please try again later.'}</p>
           </div></div>
           <div className="status-rule"><span>Studio interface</span><b>ONLINE</b></div>
-          <div className="status-rule"><span>Vibe Core / API</span><b className={coreHealthy ? undefined : 'muted-status'}>{coreHealthy ? 'HEALTHY' : healthMessage}</b></div>
+          <div className="status-rule"><span>Vibe Hub / API</span><b className={hubHealthy ? undefined : 'muted-status'}>{hubHealthy ? 'HEALTHY' : healthMessage}</b></div>
           <div className="status-rule"><span>Database</span><b className={databaseHealthy ? undefined : 'muted-status'}>{databaseHealthy ? 'HEALTHY' : healthMessage}</b></div>
         </section>
         <section className="panel"><SectionLabel action="See activity">RECENT ACTIVITY</SectionLabel><div className="activity-list">{activity.map(([title, copy, time]) => <div className="activity-item" key={title}><span className="activity-icon"><CircleDot size={13} /></span><div><b>{title}</b><p>{copy}</p></div><time>{time}</time></div>)}</div></section>
@@ -249,7 +248,7 @@ function Discover({ onOpenSignal }) {
       <section className="intro-block">
         <span className="eyebrow cyan-text">SIGNAL FIELD / LIVE VIEW</span>
         <h2>Discover what&apos;s moving.</h2>
-        <p>Live signals from Vibe Core, ranked for editorial review and ready to inspect.</p>
+        <p>Live signals from Vibe Hub, ranked for editorial review and ready to inspect.</p>
       </section>
 
       <section className="discover-feature-grid" aria-live="polite" aria-busy={loading}>
@@ -261,11 +260,11 @@ function Discover({ onOpenSignal }) {
             <p>{featured.lead.source_name ? `Lead source / ${featured.lead.source_name}` : 'Lead source unavailable'}</p>
             <div className="discover-feature-meta">
               <span>{displayCategory(featured.category)}</span>
-              <span>{featured.viability_score ?? '—'} viability</span>
+              <span>Rank / {featured.rank_tier ?? '—'}</span>
               <span>{featured.source_count ?? '—'} sources</span>
             </div>
             <button className="outline-button" onClick={() => onOpenSignal(featured.signal_id)}>Open signal <ChevronRight size={14} /></button>
-          </> : <p>{signals.status === 'error' ? 'We couldn’t load signals from Core. Try again after checking the local API.' : 'Checking the signal field.'}</p>}
+          </> : <p>{signals.status === 'error' ? 'We couldn’t load signals from Vibe Hub. Try again after checking Hub status.' : 'Checking the signal field.'}</p>}
         </div>
 
         <div className="feature-placeholder alt discover-future">
@@ -278,8 +277,8 @@ function Discover({ onOpenSignal }) {
 
       <section className="panel discover-feed" aria-live="polite" aria-busy={loading}>
         <SectionLabel>LIVE SIGNALS</SectionLabel>
-        {loading && <p className="discover-state">Loading signals from Core…</p>}
-        {signals.status === 'error' && <p className="discover-state">Signal feed unavailable. Check the local Core API and refresh.</p>}
+        {loading && <p className="discover-state">Loading signals from Vibe Hub…</p>}
+        {signals.status === 'error' && <p className="discover-state">Signal feed unavailable. Check Vibe Hub and refresh.</p>}
         {signals.status === 'ready' && signals.data.length === 0 && <p className="discover-state">No active signals are available right now.</p>}
         {feed.map((signal) => (
           <button className="discover-signal-row" key={signal.signal_id} onClick={() => onOpenSignal(signal.signal_id)}>
@@ -288,7 +287,7 @@ function Discover({ onOpenSignal }) {
               <b>{signal.headline}</b>
               <span>{signal.lead.source_name ? `Lead / ${signal.lead.source_name}` : 'Lead source unavailable'} · {signal.source_count ?? '—'} sources</span>
             </span>
-            <span className="discover-row-score"><b>{signal.viability_score ?? '—'}</b><small>VIABILITY</small></span>
+            <span className={`discover-row-score rank-${signal.rank_tier?.toLowerCase() ?? 'unranked'}`}><b>{signal.rank_tier ?? '—'}</b><small>RANK</small></span>
             <ChevronRight size={17} aria-hidden="true" />
           </button>
         ))}

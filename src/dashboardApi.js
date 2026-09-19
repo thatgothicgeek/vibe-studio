@@ -1,6 +1,7 @@
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 const isCount = (value) => Number.isSafeInteger(value) && value >= 0
 const optionalText = (value) => typeof value === 'string' && value.trim() ? value : null
+const isRankTier = (value) => ['S', 'A', 'B', 'C', 'D', 'E', 'F'].includes(value)
 
 export function parseDashboard(data) {
   if (!isObject(data) || !isCount(data.active_signal_count) || !isObject(data.category_signal_counts)) {
@@ -15,15 +16,14 @@ export function parseDashboard(data) {
   if (data.top_signal !== null) {
     const signal = data.top_signal
     if (!isObject(signal) || !optionalText(signal.headline) || !isCount(signal.source_count)
-      || typeof signal.viability_score !== 'number' || !Number.isFinite(signal.viability_score)
-      || signal.viability_score < 0 || signal.viability_score > 100) {
+      || !isRankTier(signal.rank_tier)) {
       throw new Error('Invalid top signal')
     }
     topSignal = {
       signal_id: optionalText(signal.signal_id),
       headline: signal.headline,
       category: optionalText(signal.category),
-      viability_score: signal.viability_score,
+      rank_tier: signal.rank_tier,
       source_count: signal.source_count,
       story_type: optionalText(signal.story_type),
       source_name: optionalText(signal.lead?.source_name),
@@ -50,8 +50,7 @@ export function parseSignal(data) {
     signal_id: data.signal_id,
     headline: data.headline,
     category: optionalText(data.category),
-    viability_score: typeof data.viability_score === 'number' && Number.isFinite(data.viability_score)
-      && data.viability_score >= 0 && data.viability_score <= 100 ? data.viability_score : null,
+    rank_tier: isRankTier(data.rank_tier) ? data.rank_tier : null,
     source_count: isCount(data.source_count) ? data.source_count : null,
     story_type: optionalText(data.story_type),
     lifecycle_state: optionalText(data.lifecycle_state),
