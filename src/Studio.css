@@ -481,3 +481,56 @@
     min-height: 0;
   }
 }
+
+
+/* Native Studio session controls */
+.studio-logout-form {
+  margin: 0;
+}
+
+.studio-logout-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid #353849;
+  border-radius: 10px;
+  color: #8f93a5;
+  background: rgba(17, 19, 30, .72);
+  font: 600 10px/1 var(--font-technical);
+  letter-spacing: .05em;
+  cursor: pointer;
+  transition:
+    border-color .15s ease,
+    color .15s ease,
+    box-shadow .15s ease;
+}
+
+.studio-logout-button:hover {
+  border-color: #65568a;
+  color: #d8c8f4;
+  box-shadow: 0 0 18px rgba(126, 88, 195, .08);
+}
+
+.studio-logout-button:focus-visible {
+  outline: 2px solid var(--studio-cyan);
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .studio-logout-button {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .studio-logout-button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
