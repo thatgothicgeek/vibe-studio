@@ -31,7 +31,44 @@ export function parseDashboard(data) {
       cluster_state: optionalText(signal.cluster_state),
     }
   }
-  return { active_signal_count: data.active_signal_count, category_signal_counts: counts, top_signal: topSignal }
+  if (!isObject(data.top_by_category)) {
+    throw new Error('Invalid category leaders')
+  }
+
+  const topByCategory = {}
+
+  for (const category of ['TV', 'Movies', 'Comics', 'Games', 'Tech']) {
+    const signal = data.top_by_category[category]
+
+    if (signal === null) {
+      topByCategory[category] = null
+      continue
+    }
+
+    if (!isObject(signal) || !optionalText(signal.headline) || !isCount(signal.source_count)
+      || !isRankTier(signal.rank_tier)) {
+      throw new Error('Invalid category leader')
+    }
+
+    topByCategory[category] = {
+      signal_id: optionalText(signal.signal_id),
+      headline: signal.headline,
+      category: optionalText(signal.category),
+      rank_tier: signal.rank_tier,
+      source_count: signal.source_count,
+      story_type: optionalText(signal.story_type),
+      source_name: optionalText(signal.lead?.source_name),
+      lifecycle_state: optionalText(signal.lifecycle_state),
+      cluster_state: optionalText(signal.cluster_state),
+    }
+  }
+
+  return {
+    active_signal_count: data.active_signal_count,
+    category_signal_counts: counts,
+    top_signal: topSignal,
+    top_by_category: topByCategory,
+  }
 }
 
 export function parseHealth(data) {

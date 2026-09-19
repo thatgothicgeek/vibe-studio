@@ -12,6 +12,7 @@ import {
   FilePlus2,
   FolderOpen,
   Gamepad2,
+  Info,
   LayoutDashboard,
   Laptop,
   Menu,
@@ -40,11 +41,11 @@ const navItems = [
 ]
 
 const categorySignals = [
-  { name: 'TV', count: '12 signals', color: 'cyan', Icon: Tv },
-  { name: 'Movies', count: '08 signals', color: 'purple', Icon: Clapperboard },
-  { name: 'Comics', count: '08 signals', color: 'purple', Icon: BookOpen },
-  { name: 'Games', count: '06 signals', color: 'magenta', Icon: Gamepad2 },
-  { name: 'Tech', count: '05 signals', color: 'cyan', Icon: Laptop },
+  { name: 'TV', color: 'violet', Icon: Tv },
+  { name: 'Movies', color: 'coral', Icon: Clapperboard },
+  { name: 'Comics', color: 'gold', Icon: BookOpen },
+  { name: 'Games', color: 'green', Icon: Gamepad2 },
+  { name: 'Tech', color: 'cyan', Icon: Laptop },
 ]
 
 const activity = [
@@ -113,6 +114,55 @@ function SectionLabel({ children, action }) {
   return <div className="section-label"><span>{children}</span>{action && <button className="text-action">{action}<ArrowUpRight size={13} /></button>}</div>
 }
 
+
+function CategoryLeaderCard({ name, color, Icon, signal, count, loading, onOpenSignal }) {
+  const available = Boolean(signal?.signal_id)
+
+  return (
+    <article className={`category-signal-card category-accent-${color}`}>
+      <div className="category-signal-head">
+        <span className="category-signal-name">
+          <Icon size={16} strokeWidth={1.6} aria-hidden="true" />
+          {name}
+        </span>
+        <span className={`rank-badge rank-${signal?.rank_tier?.toLowerCase() ?? 'unranked'}`}>
+          {signal?.rank_tier ?? '—'}
+        </span>
+      </div>
+
+      <button
+        className="category-signal-title"
+        disabled={!available}
+        onClick={() => available && onOpenSignal(signal.signal_id)}
+      >
+        {signal?.headline ?? (loading ? 'Loading signal…' : 'No active signal')}
+      </button>
+
+      <p>
+        {signal?.source_name
+          ? `Lead / ${signal.source_name}`
+          : loading
+            ? 'Checking source coverage…'
+            : 'Lead source unavailable'}
+      </p>
+
+      <div className="category-signal-footer">
+        <span>{count ?? '—'} active</span>
+        <span>{signal?.source_count ?? '—'} sources</span>
+
+        <button
+          className="signal-info-button"
+          disabled={!available}
+          onClick={() => available && onOpenSignal(signal.signal_id)}
+          aria-label={available ? `Open ${name} signal details` : `${name} signal unavailable`}
+        >
+          <Info size={14} strokeWidth={1.8} />
+        </button>
+      </div>
+    </article>
+  )
+}
+
 function useDashboardResource(url, parse) {
   const [resource, setResource] = useState({ status: 'loading', data: null })
 
@@ -136,6 +186,14 @@ function useDashboardResource(url, parse) {
   return resource
 }
 
+function getGreeting() {
+  const hour = new Date().getHours()
+
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 function Dashboard({ onOpenSignal }) {
   const dashboard = useDashboardResource('/api/dashboard', parseDashboard)
   const health = useDashboardResource('/api/health', parseHealth)
@@ -150,7 +208,7 @@ function Dashboard({ onOpenSignal }) {
   return (
     <div className="page-stack">
       <section className="welcome-row">
-        <div><h2>Good morning, James.</h2><p>Here&apos;s what deserves your attention.</p></div>
+        <div><h2>{getGreeting()}, James.</h2><p>Here&apos;s what deserves your attention.</p></div>
         <div className="pulse-readout" aria-live="polite" aria-busy={dashboardLoading}>
           <Activity size={15} /><span>ACTIVE SIGNALS</span>
           {dashboard.data ? <b>{dashboard.data.active_signal_count}</b> : <span>{dashboardMessage}</span>}
@@ -181,14 +239,23 @@ function Dashboard({ onOpenSignal }) {
         </div>
       </section>
       <div className="dashboard-grid">
-        <section className="panel category-panel" aria-live="polite" aria-busy={dashboardLoading}>
-          <SectionLabel action="View all">CATEGORY SIGNALS</SectionLabel>
-          {categorySignals.map(({ name, color, Icon }) => <div className="category-line" key={name}>
-            <Icon className={`category-icon ${color}`} size={20} strokeWidth={1.35} aria-hidden="true" /><span>{name}</span>
-            <small>{dashboard.data ? `${dashboard.data.category_signal_counts[name]} signals` : dashboardMessage}</small><ChevronRight size={16} />
-          </div>)}
+        <section className="panel category-leader-panel" aria-live="polite" aria-busy={dashboardLoading}>
+          <SectionLabel>TOP BY CATEGORY</SectionLabel>
+
+          <div className="category-leader-grid">
+            {categorySignals.map((item) => (
+              <CategoryLeaderCard
+                key={item.name}
+                {...item}
+                signal={dashboard.data?.top_by_category?.[item.name] ?? null}
+                count={dashboard.data?.category_signal_counts?.[item.name] ?? null}
+                loading={dashboardLoading}
+                onOpenSignal={onOpenSignal}
+              />
+            ))}
+          </div>
         </section>
-        <section className="panel"><SectionLabel action="Open desk">NEWS DESK STATUS</SectionLabel><div className="desk-stat"><span className="desk-number">04</span><div><b>Stories in motion</b><p>Across the editorial workflow</p></div></div><div className="mini-pipeline"><span style={{ '--width': '48%' }}>Signal <b>04</b></span><span style={{ '--width': '30%' }}>Developing <b>—</b></span><span style={{ '--width': '18%' }}>Draft <b>—</b></span><span style={{ '--width': '8%' }}>Ready <b>—</b></span><span style={{ '--width': '3%' }}>Published <b>—</b></span></div></section>
+        <section className="panel news-desk-panel"><SectionLabel action="Open desk">NEWS DESK STATUS</SectionLabel><div className="desk-stat"><span className="desk-number">04</span><div><b>Stories in motion</b><p>Across the editorial workflow</p></div></div><div className="mini-pipeline"><span style={{ '--width': '48%' }}>Signal <b>04</b></span><span style={{ '--width': '30%' }}>Developing <b>—</b></span><span style={{ '--width': '18%' }}>Draft <b>—</b></span><span style={{ '--width': '8%' }}>Ready <b>—</b></span><span style={{ '--width': '3%' }}>Published <b>—</b></span></div></section>
       </div>
       <div className="dashboard-grid bottom-grid">
         <section className="panel core-panel" aria-live="polite" aria-busy={healthLoading}>
