@@ -1,66 +1,150 @@
 # Vibe Studio production deployment
 
-Core → Hub → MariaDB stays unchanged. Studio runs as a separate Node web app,
-serves `dist/`, and reads Hub at `https://hub.thegeek.guide`.
+Core → Hub → MariaDB stays unchanged.
+
+Studio runs as a separate Node web app on Hostinger, serves the built React
+interface from `dist/`, provides its own private password session, and reads Hub
+through the server-side read-only credential.
 
 ## Deployment settings
 
 - Repository: `thatgothicgeek/vibe-studio`
-- Branch: `deploy/hostinger-studio` (isolates Studio from the existing Coming Soon deployment)
+- Branch after merge: `main`
 - Node: 22, at least 22.12
 - Install: `npm ci`
 - Build: `npm run build`
-- Start: `npm start` (`node server.mjs`), not Vite preview or static hosting
+- Start: `npm start`
+- Start process: `node server.mjs`
 - Domain: `studio.thegeek.guide`
-- Use Hostinger's assigned `PORT`; public liveness route: `/healthz`
+- Public health route: `/healthz`
 
-Keep the current Mini Vite service available until acceptance is complete.
-Do not copy `.env`, backup folders, databases, or the Core sync credential into Git.
+Do not deploy Studio as static hosting or with `vite preview`.
+The Node server is required for authentication and the private Hub proxy.
 
-## Private access and credentials
+Keep the existing Mini Studio available until hosted acceptance is complete.
 
-1. Deploy the additive Hub read-token change. Add `STUDIO_READ_TOKEN` to Hub
-   without changing `SYNC_TOKEN` or database variables. Use a new random token
-   distinct from the Core token. Hub accepts it only for GET dashboard, health,
-   signal list and signal detail. Core sync permissions remain unchanged.
-2. Configure a Cloudflare Access self-hosted application for the entire
-   `studio.thegeek.guide` hostname, including `/api/*`, restricted to the owner's
-   approved email. Enable Cloudflare proxying for this hostname.
-3. Set these Studio server environment variables in Hostinger:
-   - `STUDIO_HUB_READ_TOKEN`: the matching Hub read token
-   - `CF_ACCESS_ISSUER`: `https://<team>.cloudflareaccess.com` (no trailing slash)
-   - `CF_ACCESS_AUD`: this Access application's audience
-   - `STUDIO_ALLOWED_EMAILS`: approved email(s), comma separated
-4. Deploy the Node app. The server refuses to start without access configuration;
-   it validates JWT signature, issuer, audience, expiration and approved email.
-   A Hostinger preview/origin address cannot bypass this validation.
+## Production secrets
 
-No token has a `VITE_` prefix. Production never loads the Mini's sync-token file.
-The local development proxy retains its existing fallback for continuity.
-Changing a token's environment-variable name does not make it read-only: use
-the separately generated token and deploy Hub's permission change first.
+Set these only in the Hostinger environment.
 
-## Acceptance before switching daily use
+### STUDIO_HUB_READ_TOKEN
 
-- Tests and production build pass from this branch alone.
-- Anonymous Studio and API access fails; `/healthz` returns only generic status.
-- Signed-in Dashboard, Discover and Signal Detail load real Hub records.
-- Read token cannot authenticate `/api/sync` or `/api/admin/status` at Hub.
-- Studio rejects write methods and all other API routes.
-- No credential appears in built assets, browser requests, responses or logs.
-- On the actual iPhone, open HTTPS Studio, sign in, verify the local-time greeting,
-  all five category leaders, scrolling, Discover and an individual Signal.
-- Test with Tailscale off. A mobile viewport preview alone is not iPhone acceptance.
-- Verify a subsequent Git push triggers the correct Hostinger app deployment.
+The dedicated Hub read-only credential.
 
-## Normal changes and rollback
+It must match the Hub `STUDIO_READ_TOKEN`.
 
-Make changes locally, test, commit, then push this deployment branch. Keep the
-Coming Soon app on its existing branch. If Studio fails, roll back only Studio
-to its last successful Hostinger deployment; continue using the existing Mini
-Studio URL. Do not stop Core, change its sync token, or restore database volumes.
+Do not use the Core `SYNC_TOKEN`.
 
-References:
-- https://www.hostinger.com/support/how-to-deploy-a-nodejs-website-in-hostinger/
-- https://www.hostinger.com/support/how-to-add-environment-variables-during-node-js-application-deployment/
-- https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/
+### STUDIO_PASSWORD_HASH
+
+An Argon2id hash of the Studio password.
+
+Generate it locally. Never store the plaintext password in Git or Hostinger
+configuration.
+
+### STUDIO_SESSION_SECRET
+
+A cryptographically random secret used to sign Studio sessions.
+
+Use at least 32 random bytes.
+
+### PORT
+
+Use the port supplied by Hostinger. The application defaults to 3000 only for
+local execution.
+
+No private variable may use a `VITE_` prefix because Vite-prefixed variables can
+be included in browser code.
+
+## Native login behavior
+
+Studio authentication is handled entirely by the Node application.
+
+- `/studio/login` is the login page.
+- Successful authentication creates an HMAC-signed session.
+- Sessions expire after eight hours.
+- The session cookie is HttpOnly, Secure and SameSite=Strict.
+- Repeated failed logins receive increasing backoff.
+- Login failures use a generic error response.
+- `/studio/logout` invalidates the browser session.
+- Anonymous Studio pages redirect to `/studio/login`.
+- Anonymous `/api/*` requests receive HTTP 401.
+- The Hub read credential remains server-side and is never sent to the browser.
+
+The login screen follows the Studio visual language: dark neutral surfaces,
+restrained vaporwave accents, rounded containers and subtle neon glow.
+
+## Hub boundary
+
+Hub accepts `STUDIO_READ_TOKEN` only on the Studio read routes:
+
+- `/api/health`
+- `/api/dashboard`
+- `/api/signals`
+- `/api/signals/:id`
+
+The Studio credential must not authenticate:
+
+- `/api/sync`
+- `/api/admin/status`
+
+Core synchronization continues using its separate sync credential.
+
+## Domain setup
+
+Do not create `studio.thegeek.guide` until the Hostinger Node application is
+running successfully.
+
+After the application starts with all required environment variables:
+
+1. Add or bind `studio.thegeek.guide` to the Studio application.
+2. Allow Hostinger to provision DNS/SSL.
+3. Confirm HTTPS is active before testing login sessions because the production
+   cookie uses the Secure attribute.
+
+## Acceptance checklist
+
+Before switching daily use to the hosted Studio:
+
+- `npm test` passes.
+- `npm run lint` passes.
+- `npm run build` passes.
+- `/healthz` returns only generic status.
+- Anonymous `/studio` redirects to `/studio/login`.
+- Incorrect passwords display only the generic error.
+- Correct password opens Studio.
+- Logout ends the session.
+- Anonymous `/api/*` access is rejected.
+- Dashboard loads live Hub records.
+- Discover loads live Hub records.
+- Signal Detail loads live Hub records.
+- All five Dashboard category leaders appear.
+- Local-time greeting is correct.
+- Hub credentials do not appear in browser requests, responses or built assets.
+- Read-only Studio token still receives 401 from Hub write/admin routes.
+- iPhone acceptance is performed with Tailscale disabled.
+- A subsequent Git push triggers the intended Hostinger deployment.
+
+## Normal workflow
+
+After production acceptance:
+
+local edit
+→ test
+→ commit
+→ push to GitHub
+→ Hostinger deploy
+→ verify `studio.thegeek.guide`
+
+The Mini remains the Vibe Core processing node. Studio does not depend on the
+Mini being online to serve previously synchronized Hub data.
+
+## Rollback
+
+If a Studio deployment fails:
+
+1. Roll back only the Studio Hostinger application to its last working deploy.
+2. Continue using the existing Mini Studio URL if necessary.
+3. Do not change the Core sync token.
+4. Do not restore or alter Hub database volumes.
+5. Do not interrupt Core → Hub synchronization.

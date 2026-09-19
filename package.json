@@ -12,6 +12,7 @@
     "test": "node --test"
   },
   "dependencies": {
+    "argon2": "^0.45.1",
     "jose": "^6.2.12",
     "lucide-react": "^1.46.0",
     "react": "^19.2.8",

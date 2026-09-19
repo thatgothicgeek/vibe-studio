@@ -15,6 +15,7 @@ import {
   Info,
   LayoutDashboard,
   Laptop,
+  LogOut,
   Menu,
   Newspaper,
   Radio,
@@ -105,6 +106,12 @@ function Header({ page, onMenu }) {
         <span className="header-date">TUE / 16 SEP 2026</span>
         <span className="header-status"><span className="status-dot" /> SYSTEMS NOMINAL</span>
         {page === 'Signal Detail' ? <span className="profile-chip profile-metadata" aria-label="Account: JD">JD</span> : <button className="profile-chip" aria-label="Open account menu">JD</button>}
+        <form className="studio-logout-form" method="post" action="/studio/logout">
+          <button className="studio-logout-button" type="submit" aria-label="Sign out of Vibe Studio">
+            <LogOut size={15} strokeWidth={1.8} />
+            <span>Sign out</span>
+          </button>
+        </form>
       </div>
     </header>
   )
