@@ -8,6 +8,7 @@ import {
   Clapperboard,
   ChevronRight,
   CircleDot,
+  Clock3,
   Compass,
   FilePlus2,
   FolderOpen,
@@ -201,6 +202,65 @@ function getGreeting() {
   return 'Good evening'
 }
 
+function formatRefreshTimestamp(value) {
+  if (!value) return 'Refresh time unavailable'
+
+  const refreshed = new Date(value)
+
+  if (Number.isNaN(refreshed.getTime())) {
+    return 'Refresh time unavailable'
+  }
+
+  const now = new Date()
+  const refreshedDay = new Date(
+    refreshed.getFullYear(),
+    refreshed.getMonth(),
+    refreshed.getDate(),
+  )
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  )
+
+  const dayDifference = Math.round(
+    (today.getTime() - refreshedDay.getTime()) /
+      86400000,
+  )
+
+  const time = refreshed.toLocaleTimeString(
+    undefined,
+    {
+      hour: 'numeric',
+      minute: '2-digit',
+    },
+  )
+
+  if (dayDifference === 0) {
+    return `Updated today at ${time}`
+  }
+
+  if (dayDifference === 1) {
+    return `Updated yesterday at ${time}`
+  }
+
+  const date = refreshed.toLocaleDateString(
+    undefined,
+    {
+      month: 'short',
+      day: 'numeric',
+    },
+  )
+
+  return `Updated ${date} at ${time}`
+}
+
+function formatRefreshTrigger(value) {
+  if (value === 'manual') return 'Manual refresh'
+  if (value === 'scheduled') return 'Scheduled refresh'
+  return null
+}
+
 function Dashboard({ onOpenSignal }) {
   const dashboard = useDashboardResource('/api/dashboard', parseDashboard)
   const health = useDashboardResource('/api/health', parseHealth)
@@ -215,7 +275,30 @@ function Dashboard({ onOpenSignal }) {
   return (
     <div className="page-stack">
       <section className="welcome-row">
-        <div><h2>{getGreeting()}, James.</h2><p>Here&apos;s what deserves your attention.</p></div>
+        <div>
+          <h2>{getGreeting()}, James.</h2>
+          <p>Here&apos;s what deserves your attention.</p>
+
+          <div className="refresh-status" aria-live="polite">
+            <Clock3 size={13} strokeWidth={1.8} />
+            <span>
+              {dashboardLoading
+                ? 'Checking freshness…'
+                : formatRefreshTimestamp(
+                    dashboard.data?.last_refresh_at,
+                  )}
+            </span>
+
+            {dashboard.data?.last_refresh_trigger && (
+              <small>
+                {formatRefreshTrigger(
+                  dashboard.data.last_refresh_trigger,
+                )}
+              </small>
+            )}
+          </div>
+        </div>
+
         <div className="pulse-readout" aria-live="polite" aria-busy={dashboardLoading}>
           <Activity size={15} /><span>ACTIVE SIGNALS</span>
           {dashboard.data ? <b>{dashboard.data.active_signal_count}</b> : <span>{dashboardMessage}</span>}
