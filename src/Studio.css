@@ -110,85 +110,25 @@
   animation: studio-twinkle 12s 1.8s ease-in-out infinite alternate-reverse;
 }
 
-/* Two-tier Studio chrome */
-.os-chrome {
+/* Single Studio navigation bar */
+.os-topbar {
   position: sticky;
   z-index: 40;
   top: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, .07);
-  background: rgba(5, 6, 16, .52);
-  box-shadow: 0 14px 44px rgba(2, 3, 9, .16);
-  backdrop-filter: blur(22px) saturate(118%);
-}
-
-.system-bar,
-.context-bar {
-  width: 100%;
   display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   align-items: center;
-}
-
-.system-bar {
-  grid-template-columns: 52px minmax(0, 1fr) 52px;
-  min-height: 62px;
+  gap: 14px;
+  min-height: 66px;
   padding:
     env(safe-area-inset-top)
     max(16px, env(safe-area-inset-right))
     0
     max(16px, env(safe-area-inset-left));
-}
-
-.system-brand {
-  justify-self: center;
-  overflow: hidden;
-  color: #a7a2b0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 650 12px/1 var(--mono);
-  letter-spacing: .16em;
-}
-
-.system-bar-spacer {
-  width: 44px;
-  height: 44px;
-  justify-self: end;
-}
-
-.context-bar {
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  min-height: 58px;
-  gap: 12px;
-  padding:
-    0
-    max(16px, env(safe-area-inset-right))
-    0
-    max(16px, env(safe-area-inset-left));
-  border-top: 1px solid rgba(255, 255, 255, .045);
-  background: rgba(8, 9, 19, .34);
-}
-
-.context-controls {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 4px;
-}
-
-.context-controls-left {
-  justify-content: flex-start;
-}
-
-.context-controls-right {
-  justify-content: flex-end;
-}
-
-.context-title {
-  min-width: 90px;
-  color: #efebf0;
-  text-align: center;
-  text-transform: uppercase;
-  font: 700 13px/1 var(--mono);
-  letter-spacing: .12em;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  background: rgba(5, 6, 16, .5);
+  box-shadow: 0 12px 42px rgba(2, 3, 9, .15);
+  backdrop-filter: blur(22px) saturate(118%);
 }
 
 .vibe-menu-anchor {
@@ -197,7 +137,6 @@
 
 .vibe-button,
 .search-button,
-.browser-tool,
 .widget-header button {
   min-width: 44px;
   min-height: 44px;
@@ -232,33 +171,22 @@
   font: 900 17px/1 Arial, sans-serif;
 }
 
-.browser-tool {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
+.site-title-button {
+  justify-self: start;
   min-height: 44px;
-  place-items: center;
-  padding: 0;
+  padding: 0 10px;
   border: 0;
-  border-radius: 12px;
-  color: #bbb7c4;
+  border-radius: 10px;
+  color: #c8c3cf;
   background: transparent;
+  font: 700 13px/1 var(--mono);
+  letter-spacing: .16em;
   cursor: pointer;
 }
 
-.browser-tool:hover:not(:disabled) {
+.site-title-button:hover {
   color: var(--paper);
-  background: rgba(255, 255, 255, .05);
-}
-
-.browser-tool:disabled {
-  opacity: .28;
-  cursor: default;
-}
-
-.browser-tool.is-refreshing svg {
-  animation: toolbar-spin .8s linear infinite;
+  background: rgba(255, 255, 255, .035);
 }
 
 .search-button {
@@ -1000,41 +928,26 @@
 
 /* Phones */
 @media (max-width: 640px) {
-  .system-bar {
-    grid-template-columns: 48px minmax(0, 1fr) 48px;
-    min-height: 58px;
+  .os-topbar {
+    grid-template-columns: 52px minmax(0, 1fr) 44px;
+    gap: 8px;
+    min-height: 62px;
     padding-right: max(10px, env(safe-area-inset-right));
     padding-left: max(10px, env(safe-area-inset-left));
   }
 
-  .system-brand {
-    font-size: 11px;
+  .site-title-button {
+    min-width: 0;
+    max-width: 100%;
+    justify-self: start;
+    overflow: hidden;
+    padding-inline: 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
     letter-spacing: .13em;
   }
 
-  .context-bar {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    min-height: 54px;
-    gap: 6px;
-    padding-right: max(8px, env(safe-area-inset-right));
-    padding-left: max(8px, env(safe-area-inset-left));
-  }
-
-  .context-title {
-    min-width: 74px;
-    font-size: 12px;
-  }
-
-  .context-controls {
-    gap: 0;
-  }
-
-  .browser-tool {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    min-height: 42px;
-  }
 
 
       .search-button {
@@ -1160,12 +1073,8 @@
 
 /* Phone landscape must stay compact instead of becoming a desktop layout. */
 @media (max-height: 560px) and (orientation: landscape) {
-  .system-bar {
-    min-height: 50px;
-  }
-
-  .context-bar {
-    min-height: 48px;
+  .os-topbar {
+    min-height: 54px;
   }
 
   .os-content {
@@ -1260,10 +1169,6 @@
   .work-card b {
     font-size: 15px;
   }
-}
-
-@keyframes toolbar-spin {
-  to { transform: rotate(360deg); }
 }
 
 @keyframes studio-atmosphere {
