@@ -190,10 +190,10 @@ function HomeView({ signals, signalStatus, onOpen }) {
   return (
     <div className="home-view">
       <section className="home-intro">
-        <div>
+        <span className="home-kicker">Home</span>
+        <div className="home-intro-copy">
           <h1>{greetingForDate(now)}, James.</h1>
           <p className="daily-wisdom">“{wisdomForDate(now)}”</p>
-          <small>Vibe note · today</small>
         </div>
       </section>
 
@@ -351,17 +351,9 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
         </div>
 
         {!query && (
-          <div className="spotlight-section">
-            <span className="spotlight-label">Suggested</span>
-            <button type="button" onClick={() => handleCommand({ action: 'signal' })}>
-              <Compass size={17} /><span><b>Read today’s top Signals</b><small>See what deserves attention.</small></span>
-            </button>
-            <button type="button" onClick={() => handleCommand({ action: 'create' })}>
-              <FilePlus2 size={17} /><span><b>Create something</b><small>Start a new piece.</small></span>
-            </button>
-            <button type="button" onClick={() => handleCommand({ action: 'desk' })}>
-              <FolderKanban size={17} /><span><b>Resume active work</b><small>Open the Desk.</small></span>
-            </button>
+          <div className="spotlight-idle">
+            <span>Search across Vibe.</span>
+            <small>Type / for commands.</small>
           </div>
         )}
 
