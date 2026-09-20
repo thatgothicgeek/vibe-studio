@@ -69,11 +69,11 @@ export default defineConfig(({ command }) => {
           secure: true,
           configure(proxy) {
             proxy.on('proxyReq', (proxyReq, req) => {
-              const isRefreshAction =
+              const isStudioAction =
                 req.method === 'POST' &&
-                req.url?.startsWith('/api/actions/refresh')
+                req.url?.startsWith('/api/actions/')
 
-              const token = isRefreshAction
+              const token = isStudioAction
                 ? actionToken
                 : hubToken
 
