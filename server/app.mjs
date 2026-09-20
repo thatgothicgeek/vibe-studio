@@ -17,7 +17,8 @@ const mime = {
 
 const readRoute = path =>
   ['/api/dashboard', '/api/health', '/api/signals'].includes(path) ||
-  /^\/api\/signals\/[^/]+$/.test(path)
+  /^\/api\/signals\/[^/]+$/.test(path) ||
+  /^\/api\/actions\/refresh\/[^/]+$/.test(path)
 
 async function readPassword(request) {
   const contentType = request.headers['content-type'] || ''
@@ -52,6 +53,7 @@ async function readPassword(request) {
 export function createStudioServer({
   dist,
   hubToken,
+  hubActionToken = '',
   auth,
   fetchHub = fetch,
   timeoutMs = 10000,
@@ -206,9 +208,70 @@ export function createStudioServer({
         return response.end()
       }
 
+      if (
+        path === '/api/actions/refresh' &&
+        request.method === 'POST'
+      ) {
+        if (
+          !hubActionToken ||
+          /[\r\n]/.test(hubActionToken)
+        ) {
+          return json(503, {
+            error: 'Manual refresh is not configured',
+          })
+        }
+
+        const upstream = await fetchHub(
+          'https://hub.thegeek.guide/api/actions/refresh',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${hubActionToken}`,
+              Accept: 'application/json',
+            },
+            redirect: 'error',
+            signal: AbortSignal.timeout(timeoutMs),
+          },
+        )
+
+        if (![200, 201].includes(upstream.status)) {
+          await upstream.body?.cancel()
+
+          return json(
+            [400, 409, 429].includes(upstream.status)
+              ? upstream.status
+              : 502,
+            { error: 'Manual refresh unavailable' },
+          )
+        }
+
+        if (
+          !upstream.headers
+            .get('content-type')
+            ?.includes('application/json')
+        ) {
+          await upstream.body?.cancel()
+          return json(502, {
+            error: 'Hub response unavailable',
+          })
+        }
+
+        const body = await upstream.text()
+        JSON.parse(body)
+
+        if (body.includes(hubActionToken)) {
+          throw new Error('Invalid upstream response')
+        }
+
+        response.writeHead(upstream.status, {
+          'Content-Type': 'application/json; charset=utf-8',
+        })
+        return response.end(body)
+      }
+
       if (!['GET', 'HEAD'].includes(request.method)) {
-        response.setHeader('Allow', 'GET, HEAD')
-        return json(405, { error: 'Read-only service' })
+        response.setHeader('Allow', 'GET, HEAD, POST')
+        return json(405, { error: 'Method not allowed' })
       }
 
       if (path === '/api' || path.startsWith('/api/')) {
