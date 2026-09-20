@@ -11,7 +11,6 @@ import {
   Home,
   LibraryBig,
   LogOut,
-  Menu,
   Plus,
   Search,
   Settings2,
@@ -60,13 +59,6 @@ const CREATE_TYPES = [
   { label: 'Explainer', detail: 'Make something complex easier to understand.' },
 ]
 
-const appIcon = {
-  signal: Compass,
-  create: FilePlus2,
-  desk: FolderKanban,
-  library: LibraryBig,
-}
-
 function displayCategory(category) {
   if (category === 'Gaming') return 'Games'
   if (category === 'Technology') return 'Tech'
@@ -75,20 +67,6 @@ function displayCategory(category) {
 
 function StudioMark() {
   return <span className="os-mark" aria-hidden="true">V</span>
-}
-
-function ShellButton({ active, label, Icon, onClick }) {
-  return (
-    <button
-      type="button"
-      className={`dock-app${active ? ' is-active' : ''}`}
-      onClick={onClick}
-      aria-label={label}
-    >
-      <span className="dock-icon"><Icon size={20} strokeWidth={1.7} /></span>
-      <span>{label}</span>
-    </button>
-  )
 }
 
 function WidgetHeader({ title, action, onAction }) {
@@ -170,17 +148,19 @@ function WorkWidget({ onOpen }) {
 
 function CreateWidget({ onOpen }) {
   return (
-    <section className="home-widget create-widget">
-      <WidgetHeader title="Create" />
-      <button type="button" className="create-launch" onClick={() => onOpen('create')}>
-        <span className="create-plus"><Plus size={24} strokeWidth={1.7} /></span>
-        <span>
-          <b>Create something</b>
-          <small>Start with an idea, Signal, guide, review, or brief.</small>
-        </span>
-        <ChevronRight size={18} />
-      </button>
-    </section>
+    <button
+      type="button"
+      className="home-create-square"
+      onClick={() => onOpen('create')}
+      aria-label="Create something"
+    >
+      <span className="home-create-icon"><Plus size={28} strokeWidth={1.7} /></span>
+      <span className="home-create-copy">
+        <b>Create</b>
+        <small>Start something new</small>
+      </span>
+      <ChevronRight size={18} aria-hidden="true" />
+    </button>
   )
 }
 
@@ -189,18 +169,19 @@ function HomeView({ signals, signalStatus, onOpen }) {
 
   return (
     <div className="home-view">
-      <section className="home-intro">
-        <span className="home-kicker">Home</span>
-        <div className="home-intro-copy">
+      <section className="home-hero">
+        <div className="home-intro">
+          <span className="home-kicker">Home</span>
           <h1>{greetingForDate(now)}, James.</h1>
           <p className="daily-wisdom">“{wisdomForDate(now)}”</p>
         </div>
+
+        <CreateWidget onOpen={onOpen} />
       </section>
 
       <div className="home-grid">
         <SignalWidget signals={signals} status={signalStatus} onOpen={onOpen} />
         <WorkWidget onOpen={onOpen} />
-        <CreateWidget onOpen={onOpen} />
       </div>
     </div>
   )
@@ -350,13 +331,6 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
           <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
-        {!query && (
-          <div className="spotlight-idle">
-            <span>Search across Vibe.</span>
-            <small>Type / for commands.</small>
-          </div>
-        )}
-
         {query.startsWith('/') && (
           <div className="spotlight-section">
             <span className="spotlight-label">Commands</span>
@@ -410,20 +384,70 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
   )
 }
 
-function VibeMenu({ open, onClose, onHome }) {
+function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
   if (!open) return null
 
+  const menuApps = [
+    { id: 'home', label: 'Home', Icon: Home },
+    { id: 'signal', label: 'Signal', Icon: Compass },
+    { id: 'create', label: 'Create', Icon: FilePlus2 },
+    { id: 'desk', label: 'Desk', Icon: FolderKanban },
+    { id: 'library', label: 'Library', Icon: LibraryBig },
+  ]
+
+  function go(target) {
+    onNavigate(target)
+    onClose()
+  }
+
   return (
-    <div className="vibe-menu-popover">
-      <button type="button" onClick={() => { onHome(); onClose() }}>
-        <Home size={16} /> Home
+    <div className="vibe-menu-popover" role="menu" aria-label="Vibe navigation">
+      <span className="menu-section-label">Navigate</span>
+
+      {menuApps.map(({ id, label, Icon }) => (
+        <button
+          type="button"
+          key={id}
+          className={activeApp === id ? 'is-active' : ''}
+          onClick={() => go(id)}
+          role="menuitem"
+          aria-current={activeApp === id ? 'page' : undefined}
+        >
+          <Icon size={20} strokeWidth={1.7} />
+          <span>{label}</span>
+          {activeApp === id && <Circle size={7} fill="currentColor" aria-hidden="true" />}
+        </button>
+      ))}
+
+      <div className="menu-separator" />
+
+      <button
+        type="button"
+        onClick={() => {
+          onSearch()
+          onClose()
+        }}
+        role="menuitem"
+      >
+        <Search size={20} strokeWidth={1.7} />
+        <span>Search / Command</span>
       </button>
-      <button type="button">
-        <Settings2 size={16} /> Settings
+
+      <button type="button" role="menuitem">
+        <Settings2 size={20} strokeWidth={1.7} />
+        <span>Settings</span>
       </button>
-      <div className="vibe-menu-status"><Circle size={7} fill="currentColor" /> Systems normal</div>
+
+      <div className="vibe-menu-status">
+        <Circle size={8} fill="currentColor" />
+        <span>Systems normal</span>
+      </div>
+
       <form method="post" action="/studio/logout">
-        <button type="submit"><LogOut size={16} /> Sign out</button>
+        <button type="submit" role="menuitem">
+          <LogOut size={20} strokeWidth={1.7} />
+          <span>Sign out</span>
+        </button>
       </form>
     </div>
   )
@@ -475,6 +499,15 @@ function StudioApp() {
   }
 
   const currentApp = APP_DEFINITIONS.find((item) => item.id === activeApp)
+  const screenLabel = activeApp === 'home' ? 'Home' : currentApp?.label ?? 'Studio'
+
+  const contextAction = activeApp === 'create'
+    ? { label: 'Drafts', action: () => navigate('desk') }
+    : activeApp === 'desk'
+      ? { label: 'New', action: () => navigate('create') }
+      : activeApp === 'signal'
+        ? { label: 'Create', action: () => navigate('create') }
+        : null
 
   return (
     <div className="vibe-os">
@@ -487,24 +520,48 @@ function StudioApp() {
             type="button"
             className={`vibe-button${menuOpen ? ' is-open' : ''}`}
             onClick={() => setMenuOpen((value) => !value)}
-            aria-label="Open Vibe menu"
+            aria-label="Open Vibe navigation"
+            aria-expanded={menuOpen}
           >
             <StudioMark />
           </button>
+
           <VibeMenu
             open={menuOpen}
+            activeApp={activeApp}
             onClose={() => setMenuOpen(false)}
-            onHome={() => navigate('home')}
+            onNavigate={navigate}
+            onSearch={() => setSearchOpen(true)}
           />
         </div>
 
-        <span className="workspace-name">THE GEEK GUIDE</span>
+        <div className="topbar-title" aria-label={`The Geek Guide, ${screenLabel}`}>
+          <span>THE GEEK GUIDE</span>
+          <b>{screenLabel}</b>
+        </div>
 
-        <button type="button" className="search-button" onClick={() => setSearchOpen(true)}>
-          <Search size={18} />
-          <span>Search</span>
-          <kbd>⌘K</kbd>
-        </button>
+        <div className="topbar-actions">
+          {contextAction && (
+            <button
+              type="button"
+              className="context-button"
+              onClick={contextAction.action}
+            >
+              {contextAction.label}
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="search-button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search Vibe"
+          >
+            <Search size={20} strokeWidth={1.8} />
+            <span>Search</span>
+            <kbd>⌘K</kbd>
+          </button>
+        </div>
       </header>
 
       <main className="os-content">
@@ -526,21 +583,6 @@ function StudioApp() {
         {activeApp === 'desk' && <DeskView onBack={() => navigate('home')} />}
         {activeApp === 'library' && <LibraryView onBack={() => navigate('home')} />}
       </main>
-
-      <nav className="os-dock" aria-label="Vibe apps">
-        {APP_DEFINITIONS.map((app) => {
-          const Icon = appIcon[app.id]
-          return (
-            <ShellButton
-              key={app.id}
-              active={activeApp === app.id}
-              label={app.label}
-              Icon={Icon}
-              onClick={() => navigate(app.id)}
-            />
-          )
-        })}
-      </nav>
 
       {currentApp && activeApp !== 'home' && (
         <span className="current-app-announcement" aria-live="polite">
