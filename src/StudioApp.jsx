@@ -365,6 +365,45 @@ function StudioApp() {
   }, [])
 
   useEffect(() => {
+    const previousTitle = document.title
+    document.title = 'Vibe Studio'
+
+    const elements = []
+
+    const addMeta = (name, content) => {
+      const meta = document.createElement('meta')
+      meta.name = name
+      meta.content = content
+      meta.dataset.vibeStudioPwa = 'true'
+      document.head.appendChild(meta)
+      elements.push(meta)
+    }
+
+    const manifest = document.createElement('link')
+    manifest.rel = 'manifest'
+    manifest.href = '/studio.webmanifest'
+    manifest.dataset.vibeStudioPwa = 'true'
+    document.head.appendChild(manifest)
+    elements.push(manifest)
+
+    const icon = document.createElement('link')
+    icon.rel = 'apple-touch-icon'
+    icon.href = '/studio-icon.svg'
+    icon.dataset.vibeStudioPwa = 'true'
+    document.head.appendChild(icon)
+    elements.push(icon)
+
+    addMeta('apple-mobile-web-app-capable', 'yes')
+    addMeta('apple-mobile-web-app-status-bar-style', 'black-translucent')
+    addMeta('apple-mobile-web-app-title', 'Vibe Studio')
+
+    return () => {
+      document.title = previousTitle
+      elements.forEach((element) => element.remove())
+    }
+  }, [])
+
+  useEffect(() => {
     sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history))
   }, [history])
 
