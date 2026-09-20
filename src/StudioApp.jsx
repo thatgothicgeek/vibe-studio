@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronRight,
   Circle,
@@ -16,10 +16,12 @@ import {
   SHELL_COMMANDS,
   getGreeting,
   resolveShellInput,
+  suggestShellCommands,
 } from './studioShellModel'
 
 const HISTORY_KEY = 'vibe-studio-shell-history-v2'
 const GREETING_KEY = 'vibe-studio-shell-greeted-v2'
+const CONTEXT_KEY = 'vibe-studio-shell-context-v2'
 const SOFT_IDLE_MS = 60 * 60 * 1000
 
 function id() {
@@ -55,6 +57,26 @@ function userMessage(text) {
   }
 }
 
+function buildOpeningHistory({ respectGreeting = true } = {}) {
+  const greeted = respectGreeting &&
+    sessionStorage.getItem(GREETING_KEY) === '1'
+
+  const opening = vibeMessage(
+    greeted ? 'What would you like to do?' : `${getGreeting()}, James.`,
+    {
+      copy: greeted ? null : 'What would you like to do?',
+      cards: MAIN_MENU,
+      tone: greeted ? 'default' : 'opening',
+    },
+  )
+
+  sessionStorage.setItem(GREETING_KEY, '1')
+  sessionStorage.setItem(HISTORY_KEY, JSON.stringify([opening]))
+  sessionStorage.setItem(CONTEXT_KEY, 'home')
+
+  return [opening]
+}
+
 function initialHistory() {
   try {
     const saved = sessionStorage.getItem(HISTORY_KEY)
@@ -67,22 +89,12 @@ function initialHistory() {
     // A damaged session should never prevent Studio from opening.
   }
 
-  const greeted = sessionStorage.getItem(GREETING_KEY) === '1'
-  const history = [
-    vibeMessage(
-      greeted ? 'What would you like to do?' : `${getGreeting()}, James.`,
-      {
-        copy: greeted ? null : 'What would you like to do?',
-        cards: MAIN_MENU,
-        tone: greeted ? 'default' : 'opening',
-      },
-    ),
-  ]
+  return buildOpeningHistory()
+}
 
-  sessionStorage.setItem(GREETING_KEY, '1')
-  sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history))
-
-  return history
+function initialContext() {
+  const saved = sessionStorage.getItem(CONTEXT_KEY)
+  return ['home', 'create', 'news'].includes(saved) ? saved : 'home'
 }
 
 function responseForAction(action) {
@@ -187,17 +199,25 @@ function ChoiceCard({ option, active, onChoose }) {
   )
 }
 
-function ConversationBlock({ item, active, onChoose }) {
+function ConversationBlock({
+  item,
+  active,
+  onChoose,
+  rowRef,
+}) {
   if (item.role === 'user') {
     return (
-      <div className="conversation-row user-row">
+      <div ref={rowRef} className="conversation-row user-row">
         <div className="user-message">{item.title}</div>
       </div>
     )
   }
 
   return (
-    <article className={`conversation-row vibe-row tone-${item.tone}`}>
+    <article
+      ref={rowRef}
+      className={`conversation-row vibe-row tone-${item.tone}`}
+    >
       <div className="vibe-marker" aria-hidden="true">
         <Sparkles size={14} strokeWidth={1.7} />
       </div>
@@ -226,15 +246,76 @@ function ConversationBlock({ item, active, onChoose }) {
   )
 }
 
+function CommandMenu({
+  suggestions,
+  selectedIndex,
+  onSelect,
+}) {
+  if (!suggestions.length) return null
+
+  return (
+    <div className="command-menu" role="listbox" aria-label="Vibe commands">
+      <div className="command-menu-label">Commands</div>
+
+      {suggestions.map((suggestion, index) => (
+        <button
+          key={suggestion.command}
+          type="button"
+          role="option"
+          aria-selected={index === selectedIndex}
+          className={`command-suggestion${index === selectedIndex ? ' is-selected' : ''}`}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            onSelect(suggestion.command)
+          }}
+        >
+          <b>{suggestion.command}</b>
+          <span>{suggestion.detail}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function StudioApp() {
   const [history, setHistory] = useState(initialHistory)
-  const [context, setContext] = useState('home')
+  const [context, setContext] = useState(initialContext)
   const [input, setInput] = useState('')
   const [idle, setIdle] = useState(false)
-  const bottomRef = useRef(null)
+  const [focusId, setFocusId] = useState(null)
+  const [inputFocused, setInputFocused] = useState(false)
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(false)
+  const [suggestionIndex, setSuggestionIndex] = useState(0)
+
   const inputRef = useRef(null)
+  const rowRefs = useRef(new Map())
+
+  const suggestions = useMemo(() => {
+    if (!inputFocused || commandMenuDismissed) return []
+    return suggestShellCommands(input)
+  }, [commandMenuDismissed, input, inputFocused])
+
+  const clearShell = useCallback(() => {
+    sessionStorage.removeItem(HISTORY_KEY)
+    sessionStorage.removeItem(GREETING_KEY)
+    sessionStorage.removeItem(CONTEXT_KEY)
+
+    const fresh = buildOpeningHistory({ respectGreeting: false })
+
+    setHistory(fresh)
+    setContext('home')
+    setInput('')
+    setCommandMenuDismissed(false)
+    setSuggestionIndex(0)
+    setFocusId(fresh[0].id)
+  }, [])
 
   const appendAction = useCallback((action, label) => {
+    if (action === 'clear') {
+      clearShell()
+      return
+    }
+
     const response = responseForAction(action)
 
     setHistory((current) => [
@@ -249,7 +330,10 @@ function StudioApp() {
 
     setContext(response.context)
     setInput('')
-  }, [])
+    setCommandMenuDismissed(false)
+    setSuggestionIndex(0)
+    setFocusId(response.message.id)
+  }, [clearShell])
 
   const chooseOption = useCallback((option) => {
     appendAction(
@@ -259,6 +343,12 @@ function StudioApp() {
   }, [appendAction])
 
   const resumeFromIdle = useCallback(() => {
+    const welcome = vibeMessage('Welcome back.', {
+      copy: 'What would you like to do?',
+      cards: MAIN_MENU,
+      tone: 'opening',
+    })
+
     setIdle(false)
     setContext('home')
 
@@ -268,20 +358,73 @@ function StudioApp() {
           ? { ...item, settled: true }
           : item
       )),
-      vibeMessage('Welcome back.', {
-        copy: 'What would you like to do?',
-        cards: MAIN_MENU,
-        tone: 'opening',
-      }),
+      welcome,
     ])
 
+    setFocusId(welcome.id)
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }, [])
 
   useEffect(() => {
     sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history))
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [history])
+
+  useEffect(() => {
+    sessionStorage.setItem(CONTEXT_KEY, context)
+  }, [context])
+
+  useEffect(() => {
+    if (!focusId) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const node = rowRefs.current.get(focusId)
+
+      node?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [focusId])
+
+  useEffect(() => {
+    const viewport = window.visualViewport
+    const root = document.documentElement
+
+    const syncViewport = () => {
+      const height = viewport?.height ?? window.innerHeight
+      const offsetTop = viewport?.offsetTop ?? 0
+      const keyboardOffset = Math.max(
+        0,
+        window.innerHeight - height - offsetTop,
+      )
+
+      root.style.setProperty(
+        '--studio-visual-height',
+        `${Math.round(height)}px`,
+      )
+
+      root.style.setProperty(
+        '--studio-keyboard-offset',
+        `${Math.round(keyboardOffset)}px`,
+      )
+    }
+
+    syncViewport()
+
+    viewport?.addEventListener('resize', syncViewport)
+    viewport?.addEventListener('scroll', syncViewport)
+    window.addEventListener('resize', syncViewport)
+
+    return () => {
+      viewport?.removeEventListener('resize', syncViewport)
+      viewport?.removeEventListener('scroll', syncViewport)
+      window.removeEventListener('resize', syncViewport)
+      root.style.removeProperty('--studio-visual-height')
+      root.style.removeProperty('--studio-keyboard-offset')
+    }
+  }, [])
 
   useEffect(() => {
     let timer
@@ -317,6 +460,68 @@ function StudioApp() {
     return () => window.removeEventListener('keydown', resume)
   }, [idle, resumeFromIdle])
 
+  function completeSuggestion(command) {
+    setInput(command)
+    setCommandMenuDismissed(true)
+    setSuggestionIndex(0)
+
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.setSelectionRange(
+        command.length,
+        command.length,
+      )
+    })
+  }
+
+  function handleInputChange(event) {
+    setInput(event.target.value)
+    setCommandMenuDismissed(false)
+    setSuggestionIndex(0)
+  }
+
+  function handleInputKeyDown(event) {
+    if (!suggestions.length) {
+      if (event.key === 'Escape') {
+        setCommandMenuDismissed(true)
+      }
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setSuggestionIndex((current) => (
+        (current + 1) % suggestions.length
+      ))
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setSuggestionIndex((current) => (
+        (current - 1 + suggestions.length) % suggestions.length
+      ))
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setCommandMenuDismissed(true)
+      return
+    }
+
+    const selected = suggestions[suggestionIndex]
+    const exact = input.trim().toLowerCase() === selected?.command
+
+    if (
+      event.key === 'Tab' ||
+      (event.key === 'Enter' && !exact)
+    ) {
+      event.preventDefault()
+      completeSuggestion(selected.command)
+    }
+  }
+
   function handleSubmit(event) {
     event.preventDefault()
 
@@ -336,6 +541,19 @@ function StudioApp() {
 
     const typed = input.trim()
 
+    const response = vibeMessage(
+      resolved.type === 'unknown-command'
+        ? `${resolved.label} is not a command yet.`
+        : resolved.type === 'unknown-choice'
+          ? `${resolved.number} is not an option here.`
+          : 'Free-form conversation comes next.',
+      {
+        copy: resolved.type === 'text'
+          ? 'For this foundation pass, use a numbered option or slash command. The response model is being built so natural language can plug into the same spine later.'
+          : `Try one of: ${SHELL_COMMANDS.join('  ')}`,
+      },
+    )
+
     setHistory((current) => [
       ...current.map((item) => (
         item.cards?.length
@@ -343,21 +561,13 @@ function StudioApp() {
           : item
       )),
       userMessage(typed),
-      vibeMessage(
-        resolved.type === 'unknown-command'
-          ? `${resolved.label} is not a command yet.`
-          : resolved.type === 'unknown-choice'
-            ? `${resolved.number} is not an option here.`
-            : 'Free-form conversation comes next.',
-        {
-          copy: resolved.type === 'text'
-            ? 'For this foundation pass, use a numbered option or slash command. The response model is being built so natural language can plug into the same spine later.'
-            : `Try one of: ${SHELL_COMMANDS.join('  ')}`,
-        },
-      ),
+      response,
     ])
 
     setInput('')
+    setCommandMenuDismissed(false)
+    setSuggestionIndex(0)
+    setFocusId(response.id)
   }
 
   const lastActionableId = [...history]
@@ -403,13 +613,24 @@ function StudioApp() {
               item={item}
               active={item.id === lastActionableId}
               onChoose={chooseOption}
+              rowRef={(node) => {
+                if (node) rowRefs.current.set(item.id, node)
+                else rowRefs.current.delete(item.id)
+              }}
             />
           ))}
-          <div ref={bottomRef} />
+
+          <div className="conversation-tail" aria-hidden="true" />
         </section>
       </main>
 
       <div className="command-dock">
+        <CommandMenu
+          suggestions={suggestions}
+          selectedIndex={suggestionIndex}
+          onSelect={completeSuggestion}
+        />
+
         <form className="command-form" onSubmit={handleSubmit}>
           <span className="command-prefix" aria-hidden="true">
             <Command size={15} strokeWidth={1.7} />
@@ -418,10 +639,16 @@ function StudioApp() {
           <input
             ref={inputRef}
             value={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
             placeholder="Type a command or choose an option…"
             aria-label="Vibe command"
+            aria-autocomplete="list"
+            aria-expanded={suggestions.length > 0}
             autoComplete="off"
+            autoCapitalize="none"
             spellCheck="false"
           />
 
@@ -431,10 +658,11 @@ function StudioApp() {
         </form>
 
         <div className="command-hints" aria-hidden="true">
+          <span>type / for commands</span>
           <span>/home</span>
           <span>/create</span>
           <span>/news</span>
-          <span>/resume</span>
+          <span>/clear</span>
         </div>
       </div>
 
