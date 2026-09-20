@@ -117,7 +117,7 @@ function SignalWidget({ signals, status, onOpen }) {
         )}
 
         {rest.length > 0 && (
-          <div className="signal-mini-grid">
+          <div className="signal-story-rail" aria-label="More top Signals">
             {rest.map((signal, index) => (
               <button
                 type="button"
@@ -149,7 +149,7 @@ function WorkWidget({ onOpen }) {
         onAction={() => onOpen('desk')}
       />
 
-      <div className="work-card-grid">
+      <div className="work-card-rail" aria-label="Works in progress">
         {WORK_PREVIEW.map((item) => (
           <button type="button" className="work-card" key={item.id} onClick={() => onOpen('desk')}>
             <span>
