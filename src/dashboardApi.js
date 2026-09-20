@@ -152,6 +152,54 @@ export async function fetchSignal(signalId, signal) {
   return data
 }
 
+export async function correctSignalCategory(
+  signalId,
+  category,
+  signal,
+) {
+  const response = await fetch(
+    `/api/actions/signals/${encodeURIComponent(signalId)}/category`,
+    {
+      method: 'POST',
+      signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ category }),
+      cache: 'no-store',
+      redirect: 'error',
+    },
+  )
+
+  if (
+    !response.ok ||
+    !response.headers
+      .get('content-type')
+      ?.includes('application/json')
+  ) {
+    throw new Error('Category correction unavailable')
+  }
+
+  const payload = await response.json()
+  const correction = payload?.correction
+
+  if (
+    !isObject(correction) ||
+    optionalText(correction.signal_id) !== signalId ||
+    optionalText(correction.corrected_category) !== category
+  ) {
+    throw new Error('Invalid category correction response')
+  }
+
+  return {
+    signal_id: correction.signal_id,
+    original_category: optionalText(correction.original_category),
+    corrected_category: correction.corrected_category,
+    status: optionalText(correction.status),
+  }
+}
+
 export async function requestManualRefresh(signal) {
   const response = await fetch('/api/actions/refresh', {
     method: 'POST',
