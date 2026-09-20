@@ -233,3 +233,30 @@ export function IconChevronDown(props) {
     </StudioIcon>
   )
 }
+
+
+export function IconEdit(props) {
+  return (
+    <StudioIcon {...props}>
+      <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+      <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415" />
+      <path d="M16 5l3 3" />
+    </StudioIcon>
+  )
+}
+
+export function IconBug(props) {
+  return (
+    <StudioIcon {...props}>
+      <path d="M9 9v-1a3 3 0 0 1 6 0v1" />
+      <path d="M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3" />
+      <path d="M3 13l4 0" />
+      <path d="M17 13l4 0" />
+      <path d="M12 20l0 -6" />
+      <path d="M4 19l3.35 -2" />
+      <path d="M20 19l-3.35 -2" />
+      <path d="M4 7l3.75 2.4" />
+      <path d="M20 7l-3.75 2.4" />
+    </StudioIcon>
+  )
+}
