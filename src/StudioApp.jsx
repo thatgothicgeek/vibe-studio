@@ -2,19 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
   ChevronRight,
-  Circle,
   Command,
-  Compass,
-  FilePlus2,
-  FolderKanban,
-  Home,
-  LibraryBig,
-  LogOut,
-  Search,
   Sparkles,
   X,
 } from 'lucide-react'
 import './Studio.css'
+import {
+  IconCreate,
+  IconDesk,
+  IconHome,
+  IconLibrary,
+  IconLogout,
+  IconSearch,
+  IconSignal,
+  IconStatus,
+  IconYinYang,
+} from './StudioIcons'
 import { fetchSignals } from './dashboardApi'
 import {
   APP_DEFINITIONS,
@@ -63,7 +66,11 @@ function displayCategory(category) {
 }
 
 function StudioMark() {
-  return <span className="os-mark" aria-hidden="true">☯</span>
+  return (
+    <span className="os-mark" aria-hidden="true">
+      <IconYinYang size={28} strokeWidth={1.8} />
+    </span>
+  )
 }
 
 function WidgetHeader({ title, Icon, actionLabel, onAction }) {
@@ -91,7 +98,7 @@ function SignalWidget({ signals, status, onOpen }) {
     <section className="home-widget signal-widget">
       <WidgetHeader
         title="Signal"
-        Icon={Compass}
+        Icon={IconSignal}
         actionLabel="Open Signal"
         onAction={() => onOpen('signal')}
       />
@@ -142,7 +149,7 @@ function WorkWidget({ onOpen }) {
     <section className="home-widget work-widget">
       <WidgetHeader
         title="In progress"
-        Icon={FolderKanban}
+        Icon={IconDesk}
         actionLabel="Open Desk"
         onAction={() => onOpen('desk')}
       />
@@ -300,7 +307,7 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
 
       <section className="spotlight">
         <div className="spotlight-input-wrap">
-          <Search size={18} strokeWidth={1.8} />
+          <IconSearch size={19} strokeWidth={1.8} />
           <input
             autoFocus
             value={query}
@@ -331,7 +338,7 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
                 <span className="spotlight-label">Signals</span>
                 {results.signals.map((signal) => (
                   <button type="button" key={signal.signal_id} onClick={() => handleCommand({ action: 'signal' })}>
-                    <Compass size={16} />
+                    <IconSignal size={17} strokeWidth={1.8} />
                     <span><b>{signal.headline}</b><small>{displayCategory(signal.category)}</small></span>
                   </button>
                 ))}
@@ -343,7 +350,7 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
                 <span className="spotlight-label">Work</span>
                 {results.work.map((item) => (
                   <button type="button" key={item.id} onClick={() => handleCommand({ action: 'desk' })}>
-                    <FolderKanban size={16} />
+                    <IconDesk size={17} strokeWidth={1.8} />
                     <span><b>{item.title}</b><small>{item.type} · {item.state}</small></span>
                   </button>
                 ))}
@@ -369,11 +376,11 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
   if (!open) return null
 
   const menuApps = [
-    { id: 'home', label: 'Home', Icon: Home },
-    { id: 'signal', label: 'Signal', Icon: Compass },
-    { id: 'create', label: 'Create', Icon: FilePlus2 },
-    { id: 'desk', label: 'Desk', Icon: FolderKanban },
-    { id: 'library', label: 'Library', Icon: LibraryBig },
+    { id: 'home', label: 'Home', Icon: IconHome },
+    { id: 'signal', label: 'Signal', Icon: IconSignal },
+    { id: 'create', label: 'Create', Icon: IconCreate },
+    { id: 'desk', label: 'Desk', Icon: IconDesk },
+    { id: 'library', label: 'Library', Icon: IconLibrary },
   ]
 
   function go(target) {
@@ -407,18 +414,18 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
         }}
         role="menuitem"
       >
-        <Search size={20} strokeWidth={1.7} />
+        <IconSearch size={20} strokeWidth={1.8} />
         <span>Search / Command</span>
       </button>
 
       <div className="vibe-menu-status">
-        <Circle size={8} fill="currentColor" />
+        <IconStatus size={19} strokeWidth={1.8} />
         <span>Systems normal</span>
       </div>
 
       <form method="post" action="/studio/logout">
         <button type="submit" role="menuitem">
-          <LogOut size={20} strokeWidth={1.7} />
+          <IconLogout size={20} strokeWidth={1.8} />
           <span>Sign out</span>
         </button>
       </form>
@@ -519,7 +526,7 @@ function StudioApp() {
           onClick={() => setSearchOpen(true)}
           aria-label="Search Vibe"
         >
-          <Search size={21} strokeWidth={1.8} />
+          <IconSearch size={21} strokeWidth={1.8} />
           <span>Search</span>
           <kbd>⌘K</kbd>
         </button>
