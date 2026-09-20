@@ -18,6 +18,8 @@ import {
   IconCompassProcess,
   IconCreate,
   IconDesk,
+  IconEdit,
+  IconBug,
   IconExternalLink,
   IconGames,
   IconHome,
@@ -34,6 +36,7 @@ import {
   IconYinYang,
 } from './StudioIcons'
 import {
+  correctSignalCategory,
   fetchDashboard,
   fetchRefreshRequest,
   fetchSignal,
@@ -182,7 +185,7 @@ function SignalWidget({ leaders, status, onOpen, onPreview }) {
   return (
     <section className="home-widget signal-widget">
       <WidgetHeader
-        title="Signal"
+        title="Top Signals"
         Icon={IconSignal}
         actionLabel="Open Signal"
         onAction={() => onOpen('signal')}
@@ -323,6 +326,70 @@ function CategoryFilter({ value, onChange }) {
   )
 }
 
+function DigestCard({ signal, variant = 'standard', onPreview }) {
+  return (
+    <button
+      type="button"
+      className={`digest-card digest-card-${variant}`}
+      onClick={() => onPreview(signal.signal_id)}
+    >
+      <span className="digest-card-icon" aria-label={categoryLabel(signal.category)}>
+        <CategoryIcon category={signal.category} size={variant === 'hero' ? 26 : 20} />
+      </span>
+
+      <span className="digest-card-copy">
+        <b>{signal.headline}</b>
+        <small>
+          {signal.lead?.source_name || 'Source pending'}
+          {signal.source_count != null ? ` · ${signal.source_count} sources` : ''}
+        </small>
+      </span>
+
+      <ChevronRight size={18} aria-hidden="true" />
+    </button>
+  )
+}
+
+function DigestSection({ category, stories, onPreview, expanded = false }) {
+  if (!stories.length) return null
+
+  const [lead, ...rest] = stories
+  const secondary = rest.slice(0, expanded ? 8 : 3)
+
+  return (
+    <section className="digest-category-section">
+      <header className="digest-section-header">
+        <span className="digest-section-title">
+          <CategoryIcon category={category} size={22} />
+          <span>{category}</span>
+        </span>
+        <small>{stories.length} active</small>
+      </header>
+
+      <div className="digest-magazine-layout">
+        <DigestCard
+          signal={lead}
+          variant="hero"
+          onPreview={onPreview}
+        />
+
+        {secondary.length > 0 && (
+          <div className="digest-secondary-grid">
+            {secondary.map((signal) => (
+              <DigestCard
+                key={signal.signal_id}
+                signal={signal}
+                variant="compact"
+                onPreview={onPreview}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function SignalView({
   signals,
   status,
@@ -333,18 +400,25 @@ function SignalView({
 }) {
   const [category, setCategory] = useState('All')
 
-  const visibleSignals = useMemo(
-    () => (
-      category === 'All'
-        ? signals
-        : signals.filter(
-            (signal) => normalizeCategory(signal.category) === category,
-          )
-    ),
-    [category, signals],
-  )
+  const grouped = useMemo(() => {
+    const next = Object.fromEntries(
+      CATEGORY_ORDER.map((name) => [name, []]),
+    )
+
+    for (const signal of signals) {
+      const normalized = normalizeCategory(signal.category)
+      if (Object.hasOwn(next, normalized)) {
+        next[normalized].push(signal)
+      }
+    }
+
+    return next
+  }, [signals])
 
   const refreshing = ['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)
+  const visibleCategories = category === 'All'
+    ? CATEGORY_ORDER
+    : [category]
 
   return (
     <div className="app-view signal-digest-view">
@@ -352,7 +426,7 @@ function SignalView({
         <div className="app-view-heading">
           <span className="app-kicker">Signal</span>
           <h1>Digest</h1>
-          <p>What is worth looking at right now, sorted by Vibe’s internal ranking.</p>
+          <p>Top stories organized by topic. Ranking stays behind the curtain.</p>
         </div>
 
         <div className="signal-refresh-block">
@@ -381,41 +455,24 @@ function SignalView({
 
       <CategoryFilter value={category} onChange={setCategory} />
 
-      <section className="signal-digest" aria-live="polite">
+      <div className="signal-magazine" aria-live="polite">
         {status === 'loading' && <p className="widget-state">Loading Signals…</p>}
         {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
 
-        {status === 'ready' && visibleSignals.length === 0 && (
+        {status === 'ready' && visibleCategories.every((name) => grouped[name].length === 0) && (
           <p className="widget-state">No active stories in this category.</p>
         )}
 
-        {visibleSignals.map((signal) => (
-          <button
-            type="button"
-            className="digest-story"
-            key={signal.signal_id}
-            onClick={() => onPreview(signal.signal_id)}
-          >
-            <span
-              className="digest-category-icon"
-              title={categoryLabel(signal.category)}
-              aria-label={categoryLabel(signal.category)}
-            >
-              <CategoryIcon category={signal.category} size={21} />
-            </span>
-
-            <span className="digest-story-copy">
-              <b>{signal.headline}</b>
-              <small>
-                {signal.lead?.source_name || 'Source pending'}
-                {signal.source_count != null ? ` · ${signal.source_count} sources` : ''}
-              </small>
-            </span>
-
-            <ChevronRight size={18} aria-hidden="true" />
-          </button>
+        {visibleCategories.map((name) => (
+          <DigestSection
+            key={name}
+            category={name}
+            stories={grouped[name]}
+            onPreview={onPreview}
+            expanded={category !== 'All'}
+          />
         ))}
-      </section>
+      </div>
     </div>
   )
 }
@@ -424,11 +481,18 @@ function StoryPreview({
   signalId,
   onClose,
   onSendToDesk,
+  onCategoryCorrected,
   deskSignalIds,
 }) {
   const [resource, setResource] = useState({
     status: 'loading',
     data: null,
+  })
+  const [editingCategory, setEditingCategory] = useState(false)
+  const [pendingCategory, setPendingCategory] = useState('')
+  const [categoryState, setCategoryState] = useState({
+    status: 'idle',
+    message: null,
   })
 
   useEffect(() => {
@@ -438,10 +502,14 @@ function StoryPreview({
     let active = true
 
     setResource({ status: 'loading', data: null })
+    setEditingCategory(false)
+    setCategoryState({ status: 'idle', message: null })
 
     fetchSignal(signalId, controller.signal)
       .then((data) => {
-        if (active) setResource({ status: 'ready', data })
+        if (!active) return
+        setResource({ status: 'ready', data })
+        setPendingCategory(normalizeCategory(data.category))
       })
       .catch(() => {
         if (active) setResource({ status: 'error', data: null })
@@ -450,6 +518,32 @@ function StoryPreview({
     return () => {
       active = false
       controller.abort()
+    }
+  }, [signalId])
+
+  useEffect(() => {
+    if (!signalId) return undefined
+
+    const body = document.body
+    const scrollY = window.scrollY
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+
+    return () => {
+      body.style.position = previous.position
+      body.style.top = previous.top
+      body.style.width = previous.width
+      body.style.overflow = previous.overflow
+      window.scrollTo(0, scrollY)
     }
   }, [signalId])
 
@@ -474,6 +568,44 @@ function StoryPreview({
     story?.articles?.find((article) => article.url)?.url,
   )
   const inDesk = story ? deskSignalIds.has(story.signal_id) : false
+
+  async function saveCategoryCorrection() {
+    if (
+      !story ||
+      !CATEGORY_ORDER.includes(pendingCategory) ||
+      normalizeCategory(story.category) === pendingCategory
+    ) {
+      setEditingCategory(false)
+      return
+    }
+
+    setCategoryState({ status: 'saving', message: null })
+
+    try {
+      await correctSignalCategory(
+        story.signal_id,
+        pendingCategory,
+      )
+
+      setResource((current) => ({
+        ...current,
+        data: current.data
+          ? { ...current.data, category: pendingCategory }
+          : current.data,
+      }))
+      setCategoryState({
+        status: 'saved',
+        message: 'Correction saved as Signal feedback.',
+      })
+      setEditingCategory(false)
+      await onCategoryCorrected?.()
+    } catch (error) {
+      setCategoryState({
+        status: 'error',
+        message: error?.message || 'Could not save category correction.',
+      })
+    }
+  }
 
   return (
     <div className="story-preview-layer" role="dialog" aria-modal="true" aria-label="Signal story preview">
@@ -513,9 +645,72 @@ function StoryPreview({
                 <span>Excerpt</span>
                 <p>{excerpt || 'No source excerpt is available for this story yet.'}</p>
               </div>
+
+              {editingCategory && (
+                <div className="category-correction">
+                  <div className="category-correction-heading">
+                    <IconBug size={18} />
+                    <span>
+                      Correct category
+                      <small>This is saved as Signal feedback so Compass/Core can learn from the miss later.</small>
+                    </span>
+                  </div>
+
+                  <div className="category-correction-options">
+                    {CATEGORY_ORDER.map((category) => (
+                      <button
+                        type="button"
+                        key={category}
+                        className={pendingCategory === category ? 'is-selected' : ''}
+                        onClick={() => setPendingCategory(category)}
+                      >
+                        <CategoryIcon category={category} size={17} />
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="category-correction-actions">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCategory(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveCategoryCorrection}
+                      disabled={categoryState.status === 'saving'}
+                    >
+                      {categoryState.status === 'saving' ? 'Saving…' : 'Save correction'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoryState.message && !editingCategory && (
+                <p
+                  className={`category-correction-message is-${categoryState.status}`}
+                  role={categoryState.status === 'error' ? 'alert' : undefined}
+                >
+                  {categoryState.message}
+                </p>
+              )}
             </div>
 
             <footer className="story-preview-actions">
+              <button
+                type="button"
+                className="story-action"
+                onClick={() => {
+                  setPendingCategory(normalizeCategory(story.category))
+                  setEditingCategory((value) => !value)
+                }}
+              >
+                <IconEdit size={19} />
+                Edit category
+              </button>
+
               <button
                 type="button"
                 className="story-action compass-action"
@@ -1074,6 +1269,7 @@ function StudioApp() {
         signalId={selectedSignalId}
         onClose={() => setSelectedSignalId(null)}
         onSendToDesk={sendSignalToDesk}
+        onCategoryCorrected={() => loadSignalData()}
         deskSignalIds={deskSignalIds}
       />
     </div>
