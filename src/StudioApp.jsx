@@ -68,13 +68,16 @@ function StudioMark() {
   return <span className="os-mark" aria-hidden="true">V</span>
 }
 
-function WidgetHeader({ title, action, onAction }) {
+function WidgetHeader({ title, Icon, actionLabel, onAction }) {
   return (
     <div className="widget-header">
-      <span>{title}</span>
-      {action && (
-        <button type="button" onClick={onAction}>
-          {action} <ChevronRight size={14} />
+      <span className="widget-title">
+        {Icon && <Icon size={18} strokeWidth={1.7} aria-hidden="true" />}
+        {title}
+      </span>
+      {onAction && (
+        <button type="button" onClick={onAction} aria-label={actionLabel ?? `Open ${title}`}>
+          <ChevronRight size={18} strokeWidth={1.8} />
         </button>
       )}
     </div>
@@ -83,44 +86,55 @@ function WidgetHeader({ title, action, onAction }) {
 
 function SignalWidget({ signals, status, onOpen }) {
   const visible = signals.slice(0, 5)
+  const lead = visible[0]
+  const rest = visible.slice(1)
 
   return (
     <section className="home-widget signal-widget">
-      <WidgetHeader title="Signal" action="Open" onAction={() => onOpen('signal')} />
+      <WidgetHeader
+        title="Signal"
+        Icon={Compass}
+        actionLabel="Open Signal"
+        onAction={() => onOpen('signal')}
+      />
 
-      <div className="signal-list" aria-live="polite">
+      <div className="signal-widget-body" aria-live="polite">
         {status === 'loading' && <p className="widget-state">Checking the field…</p>}
         {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
         {status === 'ready' && visible.length === 0 && <p className="widget-state">Nothing active right now.</p>}
 
-        {visible.map((signal, index) => (
-          <button
-            type="button"
-            className="signal-item"
-            key={signal.signal_id}
-            onClick={() => onOpen('signal')}
-          >
-            <span className="signal-number">{index + 1}</span>
-            <span className={`rank-pill rank-${signal.rank_tier?.toLowerCase() ?? 'x'}`}>
-              {signal.rank_tier ?? '—'}
+        {lead && (
+          <button type="button" className="signal-lead-card" onClick={() => onOpen('signal')}>
+            <span className={`rank-pill rank-${lead.rank_tier?.toLowerCase() ?? 'x'}`}>
+              {lead.rank_tier ?? '—'}
             </span>
-            <span className="signal-copy">
-              <b>{signal.headline}</b>
-              <small>
-                {displayCategory(signal.category)}
-                {signal.source_count != null ? ` · ${signal.source_count} sources` : ''}
-              </small>
+            <span className="signal-lead-copy">
+              <small>{displayCategory(lead.category)} · {lead.source_count ?? '—'} sources</small>
+              <b>{lead.headline}</b>
             </span>
-            <ChevronRight size={15} aria-hidden="true" />
+            <ChevronRight size={18} aria-hidden="true" />
           </button>
-        ))}
-      </div>
+        )}
 
-      {signals.length > 3 && (
-        <button type="button" className="mobile-widget-more" onClick={() => onOpen('signal')}>
-          See all {Math.min(signals.length, 5)}
-        </button>
-      )}
+        {rest.length > 0 && (
+          <div className="signal-mini-grid">
+            {rest.map((signal, index) => (
+              <button
+                type="button"
+                className="signal-mini-card"
+                key={signal.signal_id}
+                onClick={() => onOpen('signal')}
+              >
+                <span className="signal-mini-number">{index + 2}</span>
+                <span className="signal-mini-copy">
+                  <b>{signal.headline}</b>
+                  <small>{displayCategory(signal.category)}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
@@ -128,16 +142,21 @@ function SignalWidget({ signals, status, onOpen }) {
 function WorkWidget({ onOpen }) {
   return (
     <section className="home-widget work-widget">
-      <WidgetHeader title="Works in progress" action="Desk" onAction={() => onOpen('desk')} />
+      <WidgetHeader
+        title="In progress"
+        Icon={FolderKanban}
+        actionLabel="Open Desk"
+        onAction={() => onOpen('desk')}
+      />
 
-      <div className="work-list">
+      <div className="work-card-grid">
         {WORK_PREVIEW.map((item) => (
-          <button type="button" className="work-item" key={item.id} onClick={() => onOpen('desk')}>
-            <span className="work-copy">
-              <b>{item.title}</b>
+          <button type="button" className="work-card" key={item.id} onClick={() => onOpen('desk')}>
+            <span>
               <small>{item.type} · {item.state}</small>
+              <b>{item.title}</b>
             </span>
-            <span className="work-updated">{item.updated}</span>
+            <em>{item.updated}</em>
           </button>
         ))}
       </div>
@@ -153,12 +172,11 @@ function CreateWidget({ onOpen }) {
       onClick={() => onOpen('create')}
       aria-label="Create something"
     >
-      <span className="home-create-icon"><Plus size={28} strokeWidth={1.7} /></span>
+      <span className="home-create-icon"><Plus size={30} strokeWidth={1.8} /></span>
       <span className="home-create-copy">
+        <small>New</small>
         <b>Create</b>
-        <small>Start something new</small>
       </span>
-      <ChevronRight size={18} aria-hidden="true" />
     </button>
   )
 }
@@ -170,7 +188,6 @@ function HomeView({ signals, signalStatus, onOpen }) {
     <div className="home-view">
       <section className="home-hero">
         <div className="home-intro">
-          <span className="home-kicker">Home</span>
           <h1>{greetingForDate(now)}, James.</h1>
           <p className="daily-wisdom">“{wisdomForDate(now)}”</p>
         </div>
@@ -178,7 +195,7 @@ function HomeView({ signals, signalStatus, onOpen }) {
         <CreateWidget onOpen={onOpen} />
       </section>
 
-      <div className="home-grid">
+      <div className="widget-board">
         <SignalWidget signals={signals} status={signalStatus} onOpen={onOpen} />
         <WorkWidget onOpen={onOpen} />
       </div>
