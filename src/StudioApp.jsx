@@ -107,6 +107,15 @@ function categoryLabel(category) {
   return normalized === 'Other' ? 'Unresolved' : normalized
 }
 
+function safeArticleUrl(value) {
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 function formatRefreshTime(value) {
   if (!value) return 'No refresh recorded yet'
 
@@ -461,7 +470,9 @@ function StoryPreview({
   const excerpt = story?.lead?.excerpt ||
     story?.articles?.find((article) => article.excerpt)?.excerpt ||
     null
-  const sourceUrl = story?.articles?.find((article) => article.url)?.url
+  const sourceUrl = safeArticleUrl(
+    story?.articles?.find((article) => article.url)?.url,
+  )
   const inDesk = story ? deskSignalIds.has(story.signal_id) : false
 
   return (
