@@ -11,7 +11,6 @@ import {
   Home,
   LibraryBig,
   LogOut,
-  Plus,
   RefreshCw,
   Search,
   Sparkles,
@@ -513,6 +512,7 @@ function StudioApp() {
   }
 
   const currentApp = APP_DEFINITIONS.find((item) => item.id === activeApp)
+  const screenLabel = activeApp === 'home' ? 'Home' : currentApp?.label ?? 'Studio'
   const canGoBack = navHistory.length > 0
   const canRefreshSignals = activeApp === 'home' || activeApp === 'signal'
 
@@ -524,8 +524,8 @@ function StudioApp() {
         <div className="os-environment-shade" />
       </div>
 
-      <header className="os-topbar">
-        <div className="browser-controls">
+      <div className="os-chrome">
+        <header className="system-bar">
           <div className="vibe-menu-anchor">
             <button
               type="button"
@@ -546,66 +546,68 @@ function StudioApp() {
             />
           </div>
 
-          <button
-            type="button"
-            className="browser-tool"
-            onClick={() => navigate('home')}
-            aria-label="Home"
-            title="Home"
-          >
-            <Home size={21} strokeWidth={1.8} />
-          </button>
+          <div className="system-brand" aria-label="The Geek Guide">
+            THE GEEK GUIDE
+          </div>
 
-          <button
-            type="button"
-            className="browser-tool"
-            onClick={goBack}
-            disabled={!canGoBack}
-            aria-label="Back"
-            title="Back"
-          >
-            <ArrowLeft size={21} strokeWidth={1.8} />
-          </button>
+          <div className="system-bar-spacer" aria-hidden="true" />
+        </header>
 
-          {canRefreshSignals && (
+        <nav className="context-bar" aria-label={`${screenLabel} controls`}>
+          <div className="context-controls context-controls-left">
             <button
               type="button"
-              className={`browser-tool${refreshingSignals ? ' is-refreshing' : ''}`}
-              onClick={refreshSignalView}
-              disabled={refreshingSignals}
-              aria-label="Refresh Signals"
-              title="Refresh Signals"
+              className="browser-tool"
+              onClick={() => navigate('home')}
+              aria-label="Home"
+              title="Home"
             >
-              <RefreshCw size={21} strokeWidth={1.8} />
+              <Home size={21} strokeWidth={1.8} />
             </button>
-          )}
 
-          <button
-            type="button"
-            className="create-tool"
-            onClick={() => navigate('create')}
-            aria-label="Create something"
-            title="Create"
-          >
-            <Plus size={26} strokeWidth={1.9} />
-          </button>
-        </div>
+            <button
+              type="button"
+              className="browser-tool"
+              onClick={goBack}
+              disabled={!canGoBack}
+              aria-label="Back"
+              title="Back"
+            >
+              <ArrowLeft size={21} strokeWidth={1.8} />
+            </button>
 
-        <div className="topbar-title" aria-label="The Geek Guide">
-          <span>THE GEEK GUIDE</span>
-        </div>
+            {canRefreshSignals && (
+              <button
+                type="button"
+                className={`browser-tool${refreshingSignals ? ' is-refreshing' : ''}`}
+                onClick={refreshSignalView}
+                disabled={refreshingSignals}
+                aria-label="Refresh Signals"
+                title="Refresh Signals"
+              >
+                <RefreshCw size={21} strokeWidth={1.8} />
+              </button>
+            )}
+          </div>
 
-        <button
-          type="button"
-          className="search-button"
-          onClick={() => setSearchOpen(true)}
-          aria-label="Search Vibe"
-        >
-          <Search size={21} strokeWidth={1.8} />
-          <span>Search</span>
-          <kbd>⌘K</kbd>
-        </button>
-      </header>
+          <div className="context-title" aria-current="page">
+            {screenLabel}
+          </div>
+
+          <div className="context-controls context-controls-right">
+            <button
+              type="button"
+              className="search-button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search Vibe"
+            >
+              <Search size={21} strokeWidth={1.8} />
+              <span>Search</span>
+              <kbd>⌘K</kbd>
+            </button>
+          </div>
+        </nav>
+      </div>
 
       <main className="os-content">
         {activeApp === 'home' && (
