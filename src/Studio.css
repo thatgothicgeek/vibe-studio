@@ -152,7 +152,8 @@
 .shell-icon-button:focus-visible,
 .shell-choice:focus-visible,
 .send-button:focus-visible,
-.command-suggestion:focus-visible {
+.command-suggestion:focus-visible,
+.command-editor:focus-visible {
   outline: 2px solid var(--studio-cyan);
   outline-offset: 3px;
 }
@@ -399,8 +400,11 @@
 .command-menu {
   max-height: min(290px, calc(var(--studio-visual-height, 100dvh) * .46));
   margin: 0 0 8px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid #343749;
   border-radius: 15px;
   background: rgba(14, 16, 27, .98);
@@ -429,7 +433,7 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: pan-y;
 }
 
 .command-suggestion b {
@@ -483,20 +487,39 @@
   color: var(--studio-purple);
 }
 
-.command-form input {
+.command-editor {
   min-width: 0;
   width: 100%;
-  padding: 0;
+  min-height: 24px;
+  max-height: 58px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1px 0;
   border: 0;
   outline: 0;
   color: var(--studio-paper);
   background: transparent;
+  caret-color: var(--studio-cyan);
   font-size: 16px;
   line-height: 1.4;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
-.command-form input::placeholder {
+.command-editor::-webkit-scrollbar {
+  display: none;
+}
+
+.command-editor:empty::before {
+  content: attr(data-placeholder);
   color: #646879;
+  pointer-events: none;
+}
+
+.command-editor:focus-visible {
+  outline: 0;
 }
 
 .send-button {
@@ -710,7 +733,7 @@
     border-radius: 16px;
   }
 
-  .command-form input {
+  .command-editor {
     font-size: 16px;
   }
 
