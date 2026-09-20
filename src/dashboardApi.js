@@ -63,11 +63,23 @@ export function parseDashboard(data) {
     }
   }
 
+  const lastRefreshAt = optionalText(data.last_refresh_at)
+  const lastRefreshTrigger = optionalText(data.last_refresh_trigger)
+
+  if (
+    lastRefreshTrigger &&
+    !['manual', 'scheduled'].includes(lastRefreshTrigger)
+  ) {
+    throw new Error('Invalid refresh trigger')
+  }
+
   return {
     active_signal_count: data.active_signal_count,
     category_signal_counts: counts,
     top_signal: topSignal,
     top_by_category: topByCategory,
+    last_refresh_at: lastRefreshAt,
+    last_refresh_trigger: lastRefreshTrigger,
   }
 }
 

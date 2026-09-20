@@ -122,6 +122,30 @@
 .pulse-readout b { font-size: 20px; }
 .pulse-readout small { display: none; }
 
+.refresh-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  color: #777b8c;
+  font: 10px/1.4 var(--font-technical);
+}
+
+.refresh-status svg {
+  flex: 0 0 auto;
+  color: var(--studio-cyan);
+}
+
+.refresh-status small {
+  padding: 3px 6px;
+  border: 1px solid #353849;
+  border-radius: 999px;
+  color: #9b96a8;
+  font: 9px/1 var(--font-technical);
+  letter-spacing: .04em;
+}
+
 .signal-hero {
   min-height: 280px;
   padding: 36px 38px;
