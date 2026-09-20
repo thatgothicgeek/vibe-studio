@@ -522,8 +522,11 @@ function StudioApp() {
 
   return (
     <div className="vibe-os">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+      <div className="os-environment" aria-hidden="true">
+        <div className="os-stars os-stars-one" />
+        <div className="os-stars os-stars-two" />
+        <div className="os-environment-shade" />
+      </div>
 
       <header className="os-topbar">
         <div className="vibe-menu-anchor">
