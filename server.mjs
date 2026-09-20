@@ -15,6 +15,7 @@ await access(new URL('./dist/index.html', import.meta.url))
 const server = createStudioServer({
   dist,
   hubToken: process.env.STUDIO_HUB_READ_TOKEN?.trim(),
+  hubActionToken: process.env.STUDIO_HUB_ACTION_TOKEN?.trim(),
   auth: createPasswordAuth(process.env),
 })
 
