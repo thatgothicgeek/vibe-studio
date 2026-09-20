@@ -208,8 +208,12 @@ export function createStudioServer({
         return response.end()
       }
 
+      const actionRoute =
+        path === '/api/actions/refresh' ||
+        /^\/api\/actions\/signals\/[^/]+\/category$/.test(path)
+
       if (
-        path === '/api/actions/refresh' &&
+        actionRoute &&
         request.method === 'POST'
       ) {
         if (
@@ -221,14 +225,40 @@ export function createStudioServer({
           })
         }
 
+        const upstreamUrl = new URL(
+          request.url,
+          'https://hub.thegeek.guide',
+        )
+
+        if (upstreamUrl.origin !== 'https://hub.thegeek.guide') {
+          return json(400, { error: 'Invalid path' })
+        }
+
+        const bodyChunks = []
+        let bodySize = 0
+
+        for await (const chunk of request) {
+          bodySize += chunk.length
+          if (bodySize > 64 * 1024) {
+            return json(413, { error: 'Payload too large' })
+          }
+          bodyChunks.push(chunk)
+        }
+
+        const requestBody = Buffer.concat(bodyChunks)
+
         const upstream = await fetchHub(
-          'https://hub.thegeek.guide/api/actions/refresh',
+          upstreamUrl,
           {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${hubActionToken}`,
               Accept: 'application/json',
+              ...(requestBody.length
+                ? { 'Content-Type': 'application/json' }
+                : {}),
             },
+            body: requestBody.length ? requestBody : undefined,
             redirect: 'error',
             signal: AbortSignal.timeout(timeoutMs),
           },
