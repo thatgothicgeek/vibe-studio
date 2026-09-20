@@ -5,26 +5,16 @@ import { join } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-function loadEnvToken(name, fallbackFile, fallbackKey) {
-  const environmentToken = process.env[name]?.trim()
-
-  if (environmentToken) return environmentToken
-
+function readTokenFile(relativePath, key) {
   try {
     const content = readFileSync(
-      join(homedir(), fallbackFile),
+      join(homedir(), relativePath),
       'utf8',
     )
     const match = content.match(
-      new RegExp(`^${fallbackKey}=(.+)import { readFileSync } from 'node:fs'
-import process from 'node:process'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
-
-, 'm'),
+      new RegExp(`^${key}=(.+)$`, 'm'),
     )
+
     return match?.[1]?.trim() || ''
   } catch {
     return ''
@@ -35,13 +25,11 @@ function loadHubToken() {
   return (
     process.env.STUDIO_HUB_READ_TOKEN?.trim() ||
     process.env.VIBE_HUB_SYNC_TOKEN?.trim() ||
-    loadEnvToken(
-      'STUDIO_HUB_READ_TOKEN',
+    readTokenFile(
       '.config/vibe/studio-read.env',
       'STUDIO_READ_TOKEN',
     ) ||
-    loadEnvToken(
-      'VIBE_HUB_SYNC_TOKEN',
+    readTokenFile(
       '.config/vibe/hub-sync.env',
       'VIBE_HUB_SYNC_TOKEN',
     )
@@ -51,8 +39,7 @@ function loadHubToken() {
 function loadActionToken() {
   return (
     process.env.STUDIO_HUB_ACTION_TOKEN?.trim() ||
-    loadEnvToken(
-      'STUDIO_HUB_ACTION_TOKEN',
+    readTokenFile(
       '.config/vibe/studio-action.env',
       'STUDIO_ACTION_TOKEN',
     )
