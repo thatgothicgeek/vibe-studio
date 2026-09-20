@@ -116,7 +116,7 @@
   z-index: 40;
   top: 0;
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(52px, 1fr) auto minmax(52px, 1fr);
   align-items: center;
   gap: 14px;
   min-height: 66px;
@@ -163,16 +163,18 @@
   width: 36px;
   height: 36px;
   place-items: center;
-  border: 1px solid rgba(155, 115, 218, .5);
-  border-radius: 11px;
-  color: #0c0d14;
-  background: linear-gradient(135deg, var(--purple), var(--magenta) 55%, var(--cyan));
-  box-shadow: 0 0 24px rgba(155, 115, 218, .13);
-  font: 900 17px/1 Arial, sans-serif;
+  border: 0;
+  border-radius: 50%;
+  color: #d8d0df;
+  background: transparent;
+  text-shadow:
+    0 0 12px rgba(155, 115, 218, .38),
+    0 0 18px rgba(107, 213, 223, .2);
+  font: 400 27px/1 "Arial Unicode MS", "Segoe UI Symbol", sans-serif;
 }
 
 .site-title-button {
-  justify-self: start;
+  justify-self: center;
   min-height: 44px;
   padding: 0 10px;
   border: 0;
@@ -193,11 +195,22 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  justify-self: end;
   padding: 0 12px;
-  border: 1px solid rgba(124, 130, 158, .2);
+  border: 0;
   border-radius: 11px;
   color: #b3afbd;
-  background: rgba(17, 19, 31, .5);
+  background: transparent;
+}
+
+.search-button:hover {
+  color: var(--paper);
+  background: rgba(255, 255, 255, .04);
+}
+
+.search-button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 1px rgba(167, 149, 240, .48), 0 0 18px rgba(155, 115, 218, .2);
 }
 
 .search-button span {
@@ -773,13 +786,24 @@
   width: min(100%, 620px);
   max-height: min(620px, 76vh);
   overflow: auto;
-  border: 1px solid rgba(167, 149, 240, .42);
+  border: 1px solid #696277;
   border-radius: 20px;
   background: rgba(9, 10, 20, .92);
   box-shadow:
     0 28px 100px rgba(0, 0, 0, .5),
-    0 0 34px rgba(155, 115, 218, .12);
+    0 0 0 rgba(155, 115, 218, 0);
   backdrop-filter: blur(24px);
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+
+.spotlight:focus-within {
+  border-color: #a795f0;
+  background: rgba(15, 15, 31, .95);
+  box-shadow:
+    0 0 0 1px rgba(215, 104, 216, .4),
+    0 0 20px rgba(154, 101, 230, .36),
+    0 0 34px rgba(98, 214, 226, .19),
+    0 28px 100px rgba(0, 0, 0, .52);
 }
 
 .spotlight-input-wrap {
@@ -939,7 +963,7 @@
   .site-title-button {
     min-width: 0;
     max-width: 100%;
-    justify-self: start;
+    justify-self: center;
     overflow: hidden;
     padding-inline: 6px;
     text-overflow: ellipsis;
@@ -1190,4 +1214,10 @@
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+}
+
+.spotlight-input-wrap input:focus,
+.spotlight-input-wrap input:focus-visible {
+  outline: 0;
+  box-shadow: none;
 }
