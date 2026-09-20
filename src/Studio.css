@@ -318,15 +318,15 @@
 .os-content {
   position: relative;
   z-index: 2;
-  width: min(calc(100% - 40px), 1180px);
+  width: min(calc(100% - 56px), 1180px);
   margin: 0 auto;
-  padding: clamp(34px, 5vw, 68px) 0 88px;
+  padding: clamp(38px, 6vw, 78px) 0 96px;
 }
 
 .home-view,
 .app-view {
   display: grid;
-  gap: clamp(28px, 4vw, 46px);
+  gap: clamp(34px, 5vw, 58px);
 }
 
 /* Home greeting + Create */
@@ -339,10 +339,10 @@
 
 .home-intro {
   display: grid;
-  align-content: center;
+  align-content: end;
   gap: 10px;
   min-width: 0;
-  padding: 12px 4px;
+  padding: 12px 4px 8px;
 }
 
 .app-kicker {
@@ -356,7 +356,7 @@
 .app-view-heading h1 {
   margin: 0;
   color: var(--paper);
-  font-size: clamp(30px, 4.2vw, 46px);
+  font-size: clamp(30px, 4vw, 44px);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -.045em;
@@ -379,8 +379,8 @@
   align-items: end;
   gap: 12px;
   padding: 20px;
-  border: 1px solid rgba(167, 149, 240, .38);
-  border-radius: 24px;
+  border: 1px solid rgba(167, 149, 240, .34);
+  border-radius: 28px;
   color: inherit;
   background:
     linear-gradient(145deg, rgba(95, 68, 143, .28), rgba(30, 23, 51, .62));
@@ -440,13 +440,13 @@
 
 .home-widget {
   min-width: 0;
-  border: 1px solid rgba(216, 205, 232, .12);
-  border-radius: 24px;
-  background: rgba(8, 9, 20, .38);
+  border: 1px solid rgba(216, 205, 232, .09);
+  border-radius: 26px;
+  background: rgba(8, 9, 20, .24);
   box-shadow:
-    0 22px 58px rgba(2, 3, 10, .18),
-    inset 0 1px rgba(255, 255, 255, .025);
-  backdrop-filter: blur(20px) saturate(112%);
+    0 20px 54px rgba(2, 3, 10, .12),
+    inset 0 1px rgba(255, 255, 255, .018);
+  backdrop-filter: blur(16px) saturate(108%);
 }
 
 .app-panel {
@@ -460,11 +460,13 @@
 
 .signal-widget {
   grid-column: span 8;
+  min-height: 330px;
   padding: 18px;
 }
 
 .work-widget {
   grid-column: span 4;
+  min-height: 330px;
   padding: 18px;
 }
 
@@ -509,13 +511,13 @@
   grid-template-columns: 34px minmax(0, 1fr) 20px;
   align-items: center;
   gap: 12px;
-  min-height: 122px;
-  padding: 16px;
-  border: 1px solid rgba(210, 198, 227, .11);
-  border-radius: 18px;
+  min-height: 128px;
+  padding: 14px 4px 18px;
+  border: 0;
+  border-bottom: 1px solid rgba(216, 205, 232, .09);
+  border-radius: 0;
   color: inherit;
-  background:
-    linear-gradient(135deg, rgba(73, 46, 98, .24), rgba(13, 18, 29, .42));
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
@@ -549,10 +551,20 @@
   color: #7d8294;
 }
 
-.signal-mini-grid {
+.signal-story-rail {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(180px, 1fr);
   gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.signal-story-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .signal-mini-card {
@@ -561,12 +573,13 @@
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: start;
   gap: 9px;
-  min-height: 82px;
+  min-height: 104px;
   padding: 12px;
-  border: 1px solid rgba(210, 198, 227, .09);
-  border-radius: 15px;
+  border: 1px solid rgba(210, 198, 227, .08);
+  border-radius: 16px;
   color: inherit;
-  background: rgba(8, 11, 22, .32);
+  background: rgba(9, 11, 23, .22);
+  scroll-snap-align: start;
   text-align: left;
   cursor: pointer;
 }
@@ -603,8 +616,9 @@
   -webkit-line-clamp: 2;
 }
 
-.work-card-grid {
+.work-card-rail {
   display: grid;
+  grid-auto-flow: row;
   gap: 10px;
 }
 
@@ -615,12 +629,13 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 12px;
-  min-height: 92px;
-  padding: 14px;
-  border: 1px solid rgba(210, 198, 227, .09);
-  border-radius: 16px;
+  min-height: 88px;
+  padding: 13px 2px;
+  border: 0;
+  border-bottom: 1px solid rgba(216, 205, 232, .08);
+  border-radius: 0;
   color: inherit;
-  background: rgba(8, 11, 22, .32);
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
@@ -1045,13 +1060,13 @@
   }
 
   .os-content {
-    width: min(calc(100% - 26px), 600px);
-    padding: 24px 0 44px;
+    width: min(calc(100% - 34px), 600px);
+    padding: 28px 0 54px;
   }
 
   .home-view,
   .app-view {
-    gap: 18px;
+    gap: 26px;
   }
 
   .home-hero {
@@ -1082,8 +1097,8 @@
     width: 136px;
     min-height: 136px;
     justify-self: end;
-    padding: 14px;
-    border-radius: 20px;
+    padding: 15px;
+    border-radius: 24px;
   }
 
   .home-create-icon {
@@ -1115,22 +1130,22 @@
   }
 
   .signal-lead-card {
-    min-height: 112px;
-    padding: 14px;
+    min-height: 118px;
+    padding: 10px 2px 16px;
   }
 
   .signal-lead-copy b {
     font-size: 16px;
   }
 
-  .signal-mini-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+  .signal-story-rail {
+    grid-auto-columns: minmax(185px, 72vw);
+    gap: 9px;
   }
 
   .signal-mini-card {
-    min-height: 92px;
-    padding: 10px;
+    min-height: 104px;
+    padding: 11px;
   }
 
   .signal-mini-copy b {
@@ -1145,8 +1160,8 @@
   }
 
   .work-card {
-    min-height: 84px;
-    padding: 12px;
+    min-height: 78px;
+    padding: 11px 0;
   }
 
   .work-card b {
@@ -1254,11 +1269,13 @@
 
   .signal-widget {
     grid-column: span 8;
+    min-height: 300px;
     padding: 14px;
   }
 
   .work-widget {
     grid-column: span 4;
+    min-height: 300px;
     padding: 14px;
   }
 
