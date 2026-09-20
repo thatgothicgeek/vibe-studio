@@ -39,6 +39,9 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [react()],
     server: {
+      allowedHosts: [
+        'jamess-mac-mini.taila7026b.ts.net',
+      ],
       proxy: {
         '/api': {
           target: 'https://hub.thegeek.guide',
