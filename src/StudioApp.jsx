@@ -63,7 +63,7 @@ function displayCategory(category) {
 }
 
 function StudioMark() {
-  return <span className="os-mark" aria-hidden="true">V</span>
+  return <span className="os-mark" aria-hidden="true">☯</span>
 }
 
 function WidgetHeader({ title, Icon, actionLabel, onAction }) {
