@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   getGreeting,
   resolveShellInput,
+  suggestShellCommands,
 } from './studioShellModel.js'
 
 test('resolves slash commands', () => {
@@ -15,6 +16,8 @@ test('resolves slash commands', () => {
       label: '/create',
     },
   )
+
+  assert.equal(resolveShellInput('/clear').action, 'clear')
 })
 
 test('resolves numbered choices against current context', () => {
@@ -30,6 +33,19 @@ test('keeps free text available for future conversational flows', () => {
       value: 'An idea about iPhone security',
     },
   )
+})
+
+test('suggests slash commands by prefix', () => {
+  assert.deepEqual(
+    suggestShellCommands('/n').map(({ command }) => command),
+    ['/news'],
+  )
+
+  assert.ok(
+    suggestShellCommands('/').some(({ command }) => command === '/clear'),
+  )
+
+  assert.deepEqual(suggestShellCommands('news'), [])
 })
 
 test('greeting follows local hour', () => {
