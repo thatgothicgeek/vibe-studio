@@ -12,6 +12,7 @@ import {
   LibraryBig,
   LogOut,
   Plus,
+  RefreshCw,
   Search,
   Sparkles,
   X,
@@ -164,35 +165,14 @@ function WorkWidget({ onOpen }) {
   )
 }
 
-function CreateWidget({ onOpen }) {
-  return (
-    <button
-      type="button"
-      className="home-create-square"
-      onClick={() => onOpen('create')}
-      aria-label="Create something"
-    >
-      <span className="home-create-icon"><Plus size={30} strokeWidth={1.8} /></span>
-      <span className="home-create-copy">
-        <small>New</small>
-        <b>Create</b>
-      </span>
-    </button>
-  )
-}
-
 function HomeView({ signals, signalStatus, onOpen }) {
   const now = new Date()
 
   return (
     <div className="home-view">
-      <section className="home-hero">
-        <div className="home-intro">
-          <h1>{greetingForDate(now)}, James.</h1>
-          <p className="daily-wisdom">“{wisdomForDate(now)}”</p>
-        </div>
-
-        <CreateWidget onOpen={onOpen} />
+      <section className="home-intro">
+        <h1>{greetingForDate(now)}, James.</h1>
+        <p className="daily-wisdom">“{wisdomForDate(now)}”</p>
       </section>
 
       <div className="widget-board">
@@ -203,14 +183,11 @@ function HomeView({ signals, signalStatus, onOpen }) {
   )
 }
 
-function SignalView({ signals, status, onBack }) {
+function SignalView({ signals, status }) {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-        <button type="button" className="back-button" onClick={onBack}>
-          <ArrowLeft size={17} /> Home
-        </button>
-        <span className="app-kicker">Signal</span>
+<span className="app-kicker">Signal</span>
         <h1>What’s moving.</h1>
         <p>The live field, ranked for attention.</p>
       </div>
@@ -235,14 +212,11 @@ function SignalView({ signals, status, onBack }) {
   )
 }
 
-function CreateView({ onBack }) {
+function CreateView() {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-        <button type="button" className="back-button" onClick={onBack}>
-          <ArrowLeft size={17} /> Home
-        </button>
-        <span className="app-kicker">Create</span>
+<span className="app-kicker">Create</span>
         <h1>What are we making?</h1>
         <p>Choose a starting shape. The guided flow comes next.</p>
       </div>
@@ -261,14 +235,11 @@ function CreateView({ onBack }) {
   )
 }
 
-function DeskView({ onBack }) {
+function DeskView() {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-        <button type="button" className="back-button" onClick={onBack}>
-          <ArrowLeft size={17} /> Home
-        </button>
-        <span className="app-kicker">Desk</span>
+<span className="app-kicker">Desk</span>
         <h1>Work in motion.</h1>
         <p>Ideas, drafts, reviews, and ready-to-publish work will live here.</p>
       </div>
@@ -288,14 +259,11 @@ function DeskView({ onBack }) {
   )
 }
 
-function LibraryView({ onBack }) {
+function LibraryView() {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-        <button type="button" className="back-button" onClick={onBack}>
-          <ArrowLeft size={17} /> Home
-        </button>
-        <span className="app-kicker">Library</span>
+<span className="app-kicker">Library</span>
         <h1>Your archive, without the attic dust.</h1>
         <p>Published work, guides, reviews, explainers, collections, and reusable assets.</p>
       </div>
@@ -418,8 +386,6 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
 
   return (
     <div className="vibe-menu-popover" role="menu" aria-label="Vibe navigation">
-      <span className="menu-section-label">Navigate</span>
-
       {menuApps.map(({ id, label, Icon }) => (
         <button
           type="button"
@@ -431,7 +397,6 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
         >
           <Icon size={20} strokeWidth={1.7} />
           <span>{label}</span>
-          {activeApp === id && <Circle size={7} fill="currentColor" aria-hidden="true" />}
         </button>
       ))}
 
@@ -469,6 +434,8 @@ function StudioApp() {
   const [signals, setSignals] = useState({ status: 'loading', data: [] })
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [navHistory, setNavHistory] = useState([])
+  const [refreshingSignals, setRefreshingSignals] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -506,19 +473,48 @@ function StudioApp() {
   }, [])
 
   function navigate(target) {
-    setActiveApp(target === 'settings' ? 'home' : target)
+    const next = target === 'settings' ? 'home' : target
+    if (next === activeApp) {
+      setMenuOpen(false)
+      return
+    }
+
+    setNavHistory((history) => [...history, activeApp].slice(-20))
+    setActiveApp(next)
+    setMenuOpen(false)
+  }
+
+  function goBack() {
+    setNavHistory((history) => {
+      if (!history.length) return history
+      const previous = history[history.length - 1]
+      setActiveApp(previous)
+      return history.slice(0, -1)
+    })
+  }
+
+  async function refreshSignalView() {
+    if (refreshingSignals) return
+
+    setRefreshingSignals(true)
+
+    try {
+      const data = await fetchSignals(undefined, 20)
+      setSignals({ status: 'ready', data })
+    } catch {
+      setSignals((current) => (
+        current.data.length
+          ? current
+          : { status: 'error', data: [] }
+      ))
+    } finally {
+      setRefreshingSignals(false)
+    }
   }
 
   const currentApp = APP_DEFINITIONS.find((item) => item.id === activeApp)
-  const screenLabel = activeApp === 'home' ? 'Home' : currentApp?.label ?? 'Studio'
-
-  const contextAction = activeApp === 'create'
-    ? { label: 'Drafts', action: () => navigate('desk') }
-    : activeApp === 'desk'
-      ? { label: 'New', action: () => navigate('create') }
-      : activeApp === 'signal'
-        ? { label: 'Create', action: () => navigate('create') }
-        : null
+  const canGoBack = navHistory.length > 0
+  const canRefreshSignals = activeApp === 'home' || activeApp === 'signal'
 
   return (
     <div className="vibe-os">
@@ -529,53 +525,86 @@ function StudioApp() {
       </div>
 
       <header className="os-topbar">
-        <div className="vibe-menu-anchor">
-          <button
-            type="button"
-            className={`vibe-button${menuOpen ? ' is-open' : ''}`}
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label="Open Vibe navigation"
-            aria-expanded={menuOpen}
-          >
-            <StudioMark />
-          </button>
-
-          <VibeMenu
-            open={menuOpen}
-            activeApp={activeApp}
-            onClose={() => setMenuOpen(false)}
-            onNavigate={navigate}
-            onSearch={() => setSearchOpen(true)}
-          />
-        </div>
-
-        <div className="topbar-title" aria-label={`The Geek Guide, ${screenLabel}`}>
-          <span>THE GEEK GUIDE</span>
-          <b>{screenLabel}</b>
-        </div>
-
-        <div className="topbar-actions">
-          {contextAction && (
+        <div className="browser-controls">
+          <div className="vibe-menu-anchor">
             <button
               type="button"
-              className="context-button"
-              onClick={contextAction.action}
+              className={`vibe-button${menuOpen ? ' is-open' : ''}`}
+              onClick={() => setMenuOpen((value) => !value)}
+              aria-label="Open Vibe navigation"
+              aria-expanded={menuOpen}
             >
-              {contextAction.label}
+              <StudioMark />
+            </button>
+
+            <VibeMenu
+              open={menuOpen}
+              activeApp={activeApp}
+              onClose={() => setMenuOpen(false)}
+              onNavigate={navigate}
+              onSearch={() => setSearchOpen(true)}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="browser-tool"
+            onClick={() => navigate('home')}
+            aria-label="Home"
+            title="Home"
+          >
+            <Home size={21} strokeWidth={1.8} />
+          </button>
+
+          <button
+            type="button"
+            className="browser-tool"
+            onClick={goBack}
+            disabled={!canGoBack}
+            aria-label="Back"
+            title="Back"
+          >
+            <ArrowLeft size={21} strokeWidth={1.8} />
+          </button>
+
+          {canRefreshSignals && (
+            <button
+              type="button"
+              className={`browser-tool${refreshingSignals ? ' is-refreshing' : ''}`}
+              onClick={refreshSignalView}
+              disabled={refreshingSignals}
+              aria-label="Refresh Signals"
+              title="Refresh Signals"
+            >
+              <RefreshCw size={21} strokeWidth={1.8} />
             </button>
           )}
 
           <button
             type="button"
-            className="search-button"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Search Vibe"
+            className="create-tool"
+            onClick={() => navigate('create')}
+            aria-label="Create something"
+            title="Create"
           >
-            <Search size={20} strokeWidth={1.8} />
-            <span>Search</span>
-            <kbd>⌘K</kbd>
+            <Plus size={26} strokeWidth={1.9} />
           </button>
         </div>
+
+        <div className="topbar-title" aria-label="The Geek Guide">
+          <span>THE GEEK GUIDE</span>
+        </div>
+
+        <button
+          type="button"
+          className="search-button"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search Vibe"
+        >
+          <Search size={21} strokeWidth={1.8} />
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
       </header>
 
       <main className="os-content">
@@ -590,12 +619,11 @@ function StudioApp() {
           <SignalView
             signals={signals.data}
             status={signals.status}
-            onBack={() => navigate('home')}
           />
         )}
-        {activeApp === 'create' && <CreateView onBack={() => navigate('home')} />}
-        {activeApp === 'desk' && <DeskView onBack={() => navigate('home')} />}
-        {activeApp === 'library' && <LibraryView onBack={() => navigate('home')} />}
+        {activeApp === 'create' && <CreateView />}
+        {activeApp === 'desk' && <DeskView />}
+        {activeApp === 'library' && <LibraryView />}
       </main>
 
       {currentApp && activeApp !== 'home' && (
