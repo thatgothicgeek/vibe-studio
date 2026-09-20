@@ -269,12 +269,37 @@ test(
 
     assert.equal(refresh.status, 200)
     assert.equal(
-      calls[1][0],
+      calls[1][0].href,
       'https://hub.thegeek.guide/api/actions/refresh',
     )
     assert.equal(
       calls[1][1].headers.Authorization,
       'Bearer server-only-action-token',
+    )
+
+    const categoryCorrection = await signedIn(
+      '/api/actions/signals/signal-1/category',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category: 'TV' }),
+      },
+    )
+
+    assert.equal(categoryCorrection.status, 200)
+    assert.equal(
+      calls[2][0].href,
+      'https://hub.thegeek.guide/api/actions/signals/signal-1/category',
+    )
+    assert.equal(
+      calls[2][1].headers.Authorization,
+      'Bearer server-only-action-token',
+    )
+    assert.equal(
+      Buffer.from(calls[2][1].body).toString('utf8'),
+      JSON.stringify({ category: 'TV' }),
     )
 
     const refreshStatus = await signedIn(
@@ -283,11 +308,11 @@ test(
 
     assert.equal(refreshStatus.status, 200)
     assert.equal(
-      calls[2][0].href,
+      calls[3][0].href,
       'https://hub.thegeek.guide/api/actions/refresh/example-request',
     )
     assert.equal(
-      calls[2][1].headers.Authorization,
+      calls[3][1].headers.Authorization,
       'Bearer server-only-fixture-token',
     )
 
