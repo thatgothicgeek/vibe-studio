@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import {
   Archive,
   ChevronRight,
@@ -8,17 +13,34 @@ import {
 } from 'lucide-react'
 import './Studio.css'
 import {
+  IconChevronDown,
+  IconClock,
+  IconComics,
+  IconCompassProcess,
   IconCreate,
   IconDesk,
+  IconExternalLink,
+  IconGames,
   IconHome,
   IconLibrary,
   IconLogout,
+  IconMovie,
+  IconRefresh,
   IconSearch,
+  IconSend,
   IconSignal,
   IconStatus,
+  IconTV,
+  IconTech,
   IconYinYang,
 } from './StudioIcons'
-import { fetchSignals } from './dashboardApi'
+import {
+  fetchDashboard,
+  fetchRefreshRequest,
+  fetchSignal,
+  fetchSignals,
+  requestManualRefresh,
+} from './dashboardApi'
 import {
   APP_DEFINITIONS,
   COMMANDS,
@@ -27,6 +49,9 @@ import {
   searchItems,
   wisdomForDate,
 } from './homeModel'
+
+const CATEGORY_ORDER = ['TV', 'Movies', 'Comics', 'Games', 'Tech']
+const DESK_SESSION_KEY = 'vibe-studio-desk-signals-v1'
 
 const WORK_PREVIEW = [
   {
@@ -59,10 +84,59 @@ const CREATE_TYPES = [
   { label: 'Explainer', detail: 'Make something complex easier to understand.' },
 ]
 
-function displayCategory(category) {
+function normalizeCategory(category) {
   if (category === 'Gaming') return 'Games'
   if (category === 'Technology') return 'Tech'
-  return category || 'Unresolved'
+  return CATEGORY_ORDER.includes(category) ? category : 'Other'
+}
+
+function CategoryIcon({ category, size = 18 }) {
+  const normalized = normalizeCategory(category)
+  const props = { size, strokeWidth: 1.8 }
+
+  if (normalized === 'TV') return <IconTV {...props} />
+  if (normalized === 'Movies') return <IconMovie {...props} />
+  if (normalized === 'Comics') return <IconComics {...props} />
+  if (normalized === 'Games') return <IconGames {...props} />
+  if (normalized === 'Tech') return <IconTech {...props} />
+
+  return <IconSignal {...props} />
+}
+
+function categoryLabel(category) {
+  const normalized = normalizeCategory(category)
+  return normalized === 'Other' ? 'Unresolved' : normalized
+}
+
+function formatRefreshTime(value) {
+  if (!value) return 'No refresh recorded yet'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function topByCategoryFromSignals(signals) {
+  const leaders = Object.fromEntries(
+    CATEGORY_ORDER.map((category) => [category, null]),
+  )
+
+  for (const signal of signals) {
+    const category = normalizeCategory(signal.category)
+
+    if (
+      Object.hasOwn(leaders, category) &&
+      leaders[category] === null
+    ) {
+      leaders[category] = signal
+    }
+  }
+
+  return leaders
 }
 
 function StudioMark() {
@@ -89,10 +163,13 @@ function WidgetHeader({ title, Icon, actionLabel, onAction }) {
   )
 }
 
-function SignalWidget({ signals, status, onOpen }) {
-  const visible = signals.slice(0, 5)
-  const lead = visible[0]
-  const rest = visible.slice(1)
+function SignalWidget({ leaders, status, onOpen, onPreview }) {
+  const stories = CATEGORY_ORDER
+    .map((category) => ({
+      category,
+      signal: leaders?.[category] ?? null,
+    }))
+    .filter(({ signal }) => signal)
 
   return (
     <section className="home-widget signal-widget">
@@ -103,43 +180,38 @@ function SignalWidget({ signals, status, onOpen }) {
         onAction={() => onOpen('signal')}
       />
 
-      <div className="signal-widget-body" aria-live="polite">
-        {status === 'loading' && <p className="widget-state">Checking the field…</p>}
-        {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
-        {status === 'ready' && visible.length === 0 && <p className="widget-state">Nothing active right now.</p>}
+      {status === 'loading' && <p className="widget-state">Checking the field…</p>}
+      {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
+      {status === 'ready' && stories.length === 0 && <p className="widget-state">Nothing active right now.</p>}
 
-        {lead && (
-          <button type="button" className="signal-lead-card" onClick={() => onOpen('signal')}>
-            <span className={`rank-pill rank-${lead.rank_tier?.toLowerCase() ?? 'x'}`}>
-              {lead.rank_tier ?? '—'}
-            </span>
-            <span className="signal-lead-copy">
-              <small>{displayCategory(lead.category)} · {lead.source_count ?? '—'} sources</small>
-              <b>{lead.headline}</b>
-            </span>
-            <ChevronRight size={18} aria-hidden="true" />
-          </button>
-        )}
-
-        {rest.length > 0 && (
-          <div className="signal-story-rail" aria-label="More top Signals">
-            {rest.map((signal, index) => (
-              <button
-                type="button"
-                className="signal-mini-card"
-                key={signal.signal_id}
-                onClick={() => onOpen('signal')}
+      {stories.length > 0 && (
+        <div className="category-leader-grid" aria-label="Top Signal by category">
+          {stories.map(({ category, signal }) => (
+            <button
+              type="button"
+              className="category-leader-card"
+              key={category}
+              onClick={() => onPreview(signal.signal_id)}
+              aria-label={`${category}: ${signal.headline}`}
+            >
+              <span
+                className={`category-icon category-${category.toLowerCase()}`}
+                title={category}
+                aria-hidden="true"
               >
-                <span className="signal-mini-number">{index + 2}</span>
-                <span className="signal-mini-copy">
-                  <b>{signal.headline}</b>
-                  <small>{displayCategory(signal.category)}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+                <CategoryIcon category={category} size={20} />
+              </span>
+
+              <span className="category-leader-copy">
+                <b>{signal.headline}</b>
+                <small>{signal.source_count ?? '—'} sources</small>
+              </span>
+
+              <ChevronRight size={17} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -169,7 +241,12 @@ function WorkWidget({ onOpen }) {
   )
 }
 
-function HomeView({ signals, signalStatus, onOpen }) {
+function HomeView({
+  leaders,
+  signalStatus,
+  onOpen,
+  onPreview,
+}) {
   const now = new Date()
 
   return (
@@ -180,38 +257,291 @@ function HomeView({ signals, signalStatus, onOpen }) {
       </section>
 
       <div className="widget-board">
-        <SignalWidget signals={signals} status={signalStatus} onOpen={onOpen} />
+        <SignalWidget
+          leaders={leaders}
+          status={signalStatus}
+          onOpen={onOpen}
+          onPreview={onPreview}
+        />
         <WorkWidget onOpen={onOpen} />
       </div>
     </div>
   )
 }
 
-function SignalView({ signals, status }) {
+function RefreshStatus({ dashboard, refreshState }) {
+  const label = refreshState.status === 'PENDING'
+    ? 'Refresh queued'
+    : refreshState.status === 'CLAIMED'
+      ? 'Refreshing…'
+      : refreshState.status === 'FAILED'
+        ? 'Refresh failed'
+        : null
+
   return (
-    <div className="app-view">
-      <div className="app-view-heading">
-<span className="app-kicker">Signal</span>
-        <h1>What’s moving.</h1>
-        <p>The live field, ranked for attention.</p>
+    <div className="signal-refresh-status">
+      <span>
+        <IconClock size={16} strokeWidth={1.8} />
+        Last refresh: {formatRefreshTime(dashboard?.last_refresh_at)}
+      </span>
+      {label && <em>{label}</em>}
+    </div>
+  )
+}
+
+function CategoryFilter({ value, onChange }) {
+  return (
+    <div className="category-filter" aria-label="Filter Signal digest by category">
+      <button
+        type="button"
+        className={value === 'All' ? 'is-active' : ''}
+        onClick={() => onChange('All')}
+      >
+        All
+      </button>
+
+      {CATEGORY_ORDER.map((category) => (
+        <button
+          type="button"
+          key={category}
+          className={value === category ? 'is-active' : ''}
+          onClick={() => onChange(category)}
+        >
+          <CategoryIcon category={category} size={17} />
+          <span>{category}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SignalView({
+  signals,
+  status,
+  dashboard,
+  refreshState,
+  onRefresh,
+  onPreview,
+}) {
+  const [category, setCategory] = useState('All')
+
+  const visibleSignals = useMemo(
+    () => (
+      category === 'All'
+        ? signals
+        : signals.filter(
+            (signal) => normalizeCategory(signal.category) === category,
+          )
+    ),
+    [category, signals],
+  )
+
+  const refreshing = ['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)
+
+  return (
+    <div className="app-view signal-digest-view">
+      <div className="signal-digest-heading">
+        <div className="app-view-heading">
+          <span className="app-kicker">Signal</span>
+          <h1>Digest</h1>
+          <p>What is worth looking at right now, sorted by Vibe’s internal ranking.</p>
+        </div>
+
+        <div className="signal-refresh-block">
+          <RefreshStatus dashboard={dashboard} refreshState={refreshState} />
+          <button
+            type="button"
+            className="signal-refresh-button"
+            onClick={onRefresh}
+            disabled={refreshing}
+          >
+            <IconRefresh
+              size={18}
+              strokeWidth={1.8}
+              className={refreshing ? 'is-spinning' : undefined}
+            />
+            {refreshing ? 'Refreshing' : 'Refresh Signal'}
+          </button>
+        </div>
       </div>
 
-      <section className="app-panel">
+      {refreshState.status === 'FAILED' && (
+        <p className="signal-refresh-error" role="alert">
+          {refreshState.message || 'Manual refresh is unavailable right now.'}
+        </p>
+      )}
+
+      <CategoryFilter value={category} onChange={setCategory} />
+
+      <section className="signal-digest" aria-live="polite">
         {status === 'loading' && <p className="widget-state">Loading Signals…</p>}
         {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
-        {signals.map((signal, index) => (
-          <article className="full-signal-row" key={signal.signal_id}>
-            <span className="signal-number">{index + 1}</span>
-            <span className={`rank-pill rank-${signal.rank_tier?.toLowerCase() ?? 'x'}`}>
-              {signal.rank_tier ?? '—'}
+
+        {status === 'ready' && visibleSignals.length === 0 && (
+          <p className="widget-state">No active stories in this category.</p>
+        )}
+
+        {visibleSignals.map((signal) => (
+          <button
+            type="button"
+            className="digest-story"
+            key={signal.signal_id}
+            onClick={() => onPreview(signal.signal_id)}
+          >
+            <span
+              className="digest-category-icon"
+              title={categoryLabel(signal.category)}
+              aria-label={categoryLabel(signal.category)}
+            >
+              <CategoryIcon category={signal.category} size={21} />
             </span>
-            <div>
-              <small>{displayCategory(signal.category)} · {signal.source_count ?? '—'} sources</small>
+
+            <span className="digest-story-copy">
               <b>{signal.headline}</b>
-            </div>
-          </article>
+              <small>
+                {signal.lead?.source_name || 'Source pending'}
+                {signal.source_count != null ? ` · ${signal.source_count} sources` : ''}
+              </small>
+            </span>
+
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
         ))}
       </section>
+    </div>
+  )
+}
+
+function StoryPreview({
+  signalId,
+  onClose,
+  onSendToDesk,
+  deskSignalIds,
+}) {
+  const [resource, setResource] = useState({
+    status: 'loading',
+    data: null,
+  })
+
+  useEffect(() => {
+    if (!signalId) return undefined
+
+    const controller = new AbortController()
+    let active = true
+
+    setResource({ status: 'loading', data: null })
+
+    fetchSignal(signalId, controller.signal)
+      .then((data) => {
+        if (active) setResource({ status: 'ready', data })
+      })
+      .catch(() => {
+        if (active) setResource({ status: 'error', data: null })
+      })
+
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [signalId])
+
+  useEffect(() => {
+    if (!signalId) return undefined
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [signalId, onClose])
+
+  if (!signalId) return null
+
+  const story = resource.data
+  const excerpt = story?.lead?.excerpt ||
+    story?.articles?.find((article) => article.excerpt)?.excerpt ||
+    null
+  const sourceUrl = story?.articles?.find((article) => article.url)?.url
+  const inDesk = story ? deskSignalIds.has(story.signal_id) : false
+
+  return (
+    <div className="story-preview-layer" role="dialog" aria-modal="true" aria-label="Signal story preview">
+      <button type="button" className="story-preview-scrim" onClick={onClose} aria-label="Close story preview" />
+
+      <article className="story-preview">
+        <header className="story-preview-header">
+          <span className="story-preview-category">
+            {story && <CategoryIcon category={story.category} size={20} />}
+            <span>{story ? categoryLabel(story.category) : 'Signal'}</span>
+          </span>
+          <button type="button" className="story-preview-close" onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </header>
+
+        {resource.status === 'loading' && (
+          <div className="story-preview-state">Loading story preview…</div>
+        )}
+
+        {resource.status === 'error' && (
+          <div className="story-preview-state" role="alert">
+            This story could not be loaded right now.
+          </div>
+        )}
+
+        {story && (
+          <>
+            <div className="story-preview-copy">
+              <h2>{story.headline}</h2>
+              <p className="story-preview-source">
+                {story.lead?.source_name || 'Source unavailable'}
+                {story.source_count != null ? ` · ${story.source_count} sources` : ''}
+              </p>
+
+              <div className="story-preview-excerpt">
+                <span>Excerpt</span>
+                <p>{excerpt || 'No source excerpt is available for this story yet.'}</p>
+              </div>
+            </div>
+
+            <footer className="story-preview-actions">
+              <button
+                type="button"
+                className="story-action compass-action"
+                disabled
+                title="Compass processing will be enabled later"
+              >
+                <IconCompassProcess size={19} />
+                Compass
+                <small>Soon</small>
+              </button>
+
+              <button
+                type="button"
+                className="story-action desk-action"
+                onClick={() => onSendToDesk(story)}
+                disabled={inDesk}
+              >
+                <IconSend size={19} />
+                {inDesk ? 'In Desk' : 'Send to Desk'}
+              </button>
+
+              {sourceUrl && (
+                <a
+                  className="story-action source-action"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <IconExternalLink size={19} />
+                  Read source
+                </a>
+              )}
+            </footer>
+          </>
+        )}
+      </article>
     </div>
   )
 }
@@ -220,7 +550,7 @@ function CreateView() {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-<span className="app-kicker">Create</span>
+        <span className="app-kicker">Create</span>
         <h1>What are we making?</h1>
         <p>Choose a starting shape. The guided flow comes next.</p>
       </div>
@@ -239,14 +569,34 @@ function CreateView() {
   )
 }
 
-function DeskView() {
+function DeskView({ signalItems }) {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-<span className="app-kicker">Desk</span>
+        <span className="app-kicker">Desk</span>
         <h1>Work in motion.</h1>
-        <p>Ideas, drafts, reviews, and ready-to-publish work will live here.</p>
+        <p>Ideas, drafts, reviewing, and stories you have pulled in from Signal.</p>
       </div>
+
+      {signalItems.length > 0 && (
+        <section className="desk-signal-section">
+          <h2>From Signal</h2>
+          <div className="app-panel">
+            {signalItems.map((item) => (
+              <article className="desk-row" key={item.signal_id}>
+                <div>
+                  <small>
+                    <CategoryIcon category={item.category} size={14} />
+                    Signal · {categoryLabel(item.category)}
+                  </small>
+                  <b>{item.headline}</b>
+                </div>
+                <span>Added</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="app-panel">
         {WORK_PREVIEW.map((item) => (
@@ -267,7 +617,7 @@ function LibraryView() {
   return (
     <div className="app-view">
       <div className="app-view-heading">
-<span className="app-kicker">Library</span>
+        <span className="app-kicker">Library</span>
         <h1>Your archive, without the attic dust.</h1>
         <p>Published work, guides, reviews, explainers, collections, and reusable assets.</p>
       </div>
@@ -339,7 +689,7 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
                 {results.signals.map((signal) => (
                   <button type="button" key={signal.signal_id} onClick={() => handleCommand({ action: 'signal' })}>
                     <IconSignal size={17} strokeWidth={1.8} />
-                    <span><b>{signal.headline}</b><small>{displayCategory(signal.category)}</small></span>
+                    <span><b>{signal.headline}</b><small>{categoryLabel(signal.category)}</small></span>
                   </button>
                 ))}
               </div>
@@ -433,29 +783,106 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
   )
 }
 
+function readDeskSignals() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(DESK_SESSION_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function StudioApp() {
   const [activeApp, setActiveApp] = useState('home')
   const [signals, setSignals] = useState({ status: 'loading', data: [] })
+  const [dashboard, setDashboard] = useState({ status: 'loading', data: null })
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [selectedSignalId, setSelectedSignalId] = useState(null)
+  const [deskSignals, setDeskSignals] = useState(readDeskSignals)
+  const [refreshState, setRefreshState] = useState({
+    status: 'idle',
+    requestId: null,
+    message: null,
+  })
+
+  const loadSignalData = useCallback(async (signal) => {
+    const [signalResult, dashboardResult] = await Promise.allSettled([
+      fetchSignals(signal, 100),
+      fetchDashboard(signal),
+    ])
+
+    if (signalResult.status === 'fulfilled') {
+      setSignals({ status: 'ready', data: signalResult.value })
+    } else {
+      setSignals({ status: 'error', data: [] })
+    }
+
+    if (dashboardResult.status === 'fulfilled') {
+      setDashboard({ status: 'ready', data: dashboardResult.value })
+    } else {
+      setDashboard({ status: 'error', data: null })
+    }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
-    let active = true
+    loadSignalData(controller.signal)
+    return () => controller.abort()
+  }, [loadSignalData])
 
-    fetchSignals(controller.signal, 20)
-      .then((data) => {
-        if (active) setSignals({ status: 'ready', data })
-      })
-      .catch(() => {
-        if (active) setSignals({ status: 'error', data: [] })
-      })
+  useEffect(() => {
+    sessionStorage.setItem(
+      DESK_SESSION_KEY,
+      JSON.stringify(deskSignals),
+    )
+  }, [deskSignals])
+
+  useEffect(() => {
+    if (
+      !refreshState.requestId ||
+      !['PENDING', 'CLAIMED'].includes(refreshState.status)
+    ) {
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const timer = window.setInterval(async () => {
+      try {
+        const request = await fetchRefreshRequest(
+          refreshState.requestId,
+          controller.signal,
+        )
+
+        setRefreshState((current) => ({
+          ...current,
+          status: request.status,
+          message: request.error_message,
+        }))
+
+        if (request.status === 'COMPLETE') {
+          window.clearInterval(timer)
+          await loadSignalData()
+        }
+
+        if (request.status === 'FAILED') {
+          window.clearInterval(timer)
+        }
+      } catch {
+        // Keep the request alive. A transient status read should not create
+        // a second refresh request or erase the current state.
+      }
+    }, 2000)
 
     return () => {
-      active = false
+      window.clearInterval(timer)
       controller.abort()
     }
-  }, [])
+  }, [
+    loadSignalData,
+    refreshState.requestId,
+    refreshState.status,
+  ])
 
   useEffect(() => {
     function handleKey(event) {
@@ -480,6 +907,68 @@ function StudioApp() {
     setMenuOpen(false)
   }
 
+  async function handleManualRefresh() {
+    if (['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)) {
+      return
+    }
+
+    setRefreshState({
+      status: 'requesting',
+      requestId: null,
+      message: null,
+    })
+
+    try {
+      const request = await requestManualRefresh()
+
+      setRefreshState({
+        status: request.status,
+        requestId: request.request_id,
+        message: request.error_message,
+      })
+
+      if (request.status === 'COMPLETE') {
+        await loadSignalData()
+      }
+    } catch (error) {
+      setRefreshState({
+        status: 'FAILED',
+        requestId: null,
+        message: error?.message || 'Manual refresh is unavailable.',
+      })
+    }
+  }
+
+  function sendSignalToDesk(signal) {
+    setDeskSignals((current) => {
+      if (current.some((item) => item.signal_id === signal.signal_id)) {
+        return current
+      }
+
+      return [
+        {
+          signal_id: signal.signal_id,
+          headline: signal.headline,
+          category: signal.category,
+          added_at: new Date().toISOString(),
+        },
+        ...current,
+      ]
+    })
+  }
+
+  const leaders = dashboard.data?.top_by_category ||
+    topByCategoryFromSignals(signals.data)
+  const signalStatus =
+    signals.status === 'error' && dashboard.status === 'error'
+      ? 'error'
+      : signals.status === 'loading' && dashboard.status === 'loading'
+        ? 'loading'
+        : 'ready'
+  const deskSignalIds = useMemo(
+    () => new Set(deskSignals.map((item) => item.signal_id)),
+    [deskSignals],
+  )
   const currentApp = APP_DEFINITIONS.find((item) => item.id === activeApp)
 
   return (
@@ -535,19 +1024,26 @@ function StudioApp() {
       <main className="os-content">
         {activeApp === 'home' && (
           <HomeView
-            signals={signals.data}
-            signalStatus={signals.status}
+            leaders={leaders}
+            signalStatus={signalStatus}
             onOpen={navigate}
+            onPreview={setSelectedSignalId}
           />
         )}
+
         {activeApp === 'signal' && (
           <SignalView
             signals={signals.data}
             status={signals.status}
+            dashboard={dashboard.data}
+            refreshState={refreshState}
+            onRefresh={handleManualRefresh}
+            onPreview={setSelectedSignalId}
           />
         )}
+
         {activeApp === 'create' && <CreateView />}
-        {activeApp === 'desk' && <DeskView />}
+        {activeApp === 'desk' && <DeskView signalItems={deskSignals} />}
         {activeApp === 'library' && <LibraryView />}
       </main>
 
@@ -562,6 +1058,13 @@ function StudioApp() {
         onClose={() => setSearchOpen(false)}
         signals={signals.data}
         onNavigate={navigate}
+      />
+
+      <StoryPreview
+        signalId={selectedSignalId}
+        onClose={() => setSelectedSignalId(null)}
+        onSendToDesk={sendSignalToDesk}
+        deskSignalIds={deskSignalIds}
       />
     </div>
   )
