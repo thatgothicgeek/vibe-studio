@@ -1,10 +1,13 @@
-export const SHELL_COMMANDS = [
-  '/home',
-  '/create',
-  '/news',
-  '/resume',
-  '/settings',
+export const COMMAND_DEFINITIONS = [
+  { command: '/home', action: 'home', detail: 'Return to the main Studio menu.' },
+  { command: '/create', action: 'create', detail: 'Open the creation menu.' },
+  { command: '/news', action: 'news', detail: 'Open the Signal and news menu.' },
+  { command: '/resume', action: 'resume', detail: 'Return to the active workspace.' },
+  { command: '/settings', action: 'settings', detail: 'Open Studio settings.' },
+  { command: '/clear', action: 'clear', detail: 'Clear this session and start fresh.' },
 ]
+
+export const SHELL_COMMANDS = COMMAND_DEFINITIONS.map(({ command }) => command)
 
 export const MAIN_MENU = [
   { number: 1, label: 'Create something', action: 'create', detail: 'Start with an idea, story, guide, or review.' },
@@ -39,6 +42,16 @@ export function menuForContext(context) {
   return MAIN_MENU
 }
 
+export function suggestShellCommands(value) {
+  const input = String(value ?? '').trim().toLowerCase()
+
+  if (!input.startsWith('/')) return []
+
+  return COMMAND_DEFINITIONS.filter(({ command }) => (
+    command.startsWith(input)
+  ))
+}
+
 export function resolveShellInput(value, context = 'home') {
   const input = String(value ?? '').trim()
 
@@ -46,12 +59,13 @@ export function resolveShellInput(value, context = 'home') {
 
   if (input.startsWith('/')) {
     const command = input.toLowerCase().split(/\s+/)[0]
+    const definition = COMMAND_DEFINITIONS.find((item) => item.command === command)
 
-    if (SHELL_COMMANDS.includes(command)) {
+    if (definition) {
       return {
         type: 'command',
-        action: command.slice(1),
-        label: command,
+        action: definition.action,
+        label: definition.command,
       }
     }
 
