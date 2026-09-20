@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import './Studio.css'
 import {
-  IconChevronDown,
   IconClock,
   IconComics,
   IconCompassProcess,
