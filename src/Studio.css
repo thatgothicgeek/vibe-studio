@@ -165,12 +165,14 @@
   place-items: center;
   border: 0;
   border-radius: 50%;
-  color: #d8d0df;
+  color: #dcd5e3;
   background: transparent;
-  text-shadow:
-    0 0 12px rgba(155, 115, 218, .38),
-    0 0 18px rgba(107, 213, 223, .2);
-  font: 400 27px/1 "Arial Unicode MS", "Segoe UI Symbol", sans-serif;
+}
+
+.os-mark svg {
+  filter:
+    drop-shadow(0 0 7px rgba(155, 115, 218, .34))
+    drop-shadow(0 0 10px rgba(107, 213, 223, .14));
 }
 
 .site-title-button {
@@ -230,15 +232,22 @@
 .vibe-menu-popover {
   position: absolute;
   z-index: 70;
-  top: 48px;
-  left: 0;
+  top: 55px;
+  left: -16px;
   display: grid;
-  width: min(310px, calc(100vw - 28px));
-  padding: 9px;
-  border: 1px solid #34384b;
-  border-radius: 17px;
-  background: rgba(14, 16, 27, .99);
-  box-shadow: 0 20px 70px rgba(0, 0, 0, .4);
+  width: min(320px, calc(100vw - 20px));
+  padding: 10px 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-top: 0;
+  border-radius: 0 0 17px 17px;
+  background:
+    linear-gradient(180deg, rgba(5, 6, 16, .96), rgba(12, 13, 25, .98));
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, .42),
+    inset 0 1px rgba(255, 255, 255, .025);
+  backdrop-filter: blur(24px) saturate(120%);
+  transform-origin: top left;
+  animation: system-menu-in .14s ease-out;
 }
 
 .menu-section-label {
@@ -252,14 +261,14 @@
 .vibe-menu-popover button {
   display: grid;
   width: 100%;
-  min-height: 50px;
+  min-height: 48px;
   grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   padding: 0 12px;
   border: 0;
-  border-radius: 11px;
-  color: #c3c5cf;
+  border-radius: 9px;
+  color: #cbc6d2;
   background: transparent;
   text-align: left;
   font-size: 16px;
@@ -268,11 +277,11 @@
 
 .vibe-menu-popover button:hover,
 .vibe-menu-popover button.is-active {
-  background: #1a1d2d;
+  background: rgba(119, 95, 153, .16);
 }
 
 .vibe-menu-popover button.is-active {
-  color: var(--cyan);
+  color: #efeaf2;
 }
 
 .menu-separator {
@@ -284,12 +293,12 @@
 .vibe-menu-status {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   margin: 7px 5px;
   padding: 11px 8px;
-  border-top: 1px solid #292d3d;
-  border-bottom: 1px solid #292d3d;
-  color: #868b9b;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  color: #92909d;
   font: 12px/1.3 var(--mono);
 }
 
@@ -952,6 +961,12 @@
 
 /* Phones */
 @media (max-width: 640px) {
+  .vibe-menu-popover {
+    top: 53px;
+    left: -10px;
+    width: min(320px, calc(100vw - 10px));
+  }
+
   .os-topbar {
     grid-template-columns: 52px minmax(0, 1fr) 44px;
     gap: 8px;
@@ -1097,6 +1112,10 @@
 
 /* Phone landscape must stay compact instead of becoming a desktop layout. */
 @media (max-height: 560px) and (orientation: landscape) {
+  .vibe-menu-popover {
+    top: 49px;
+  }
+
   .os-topbar {
     min-height: 54px;
   }
@@ -1192,6 +1211,17 @@
   .signal-mini-copy b,
   .work-card b {
     font-size: 15px;
+  }
+}
+
+@keyframes system-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
