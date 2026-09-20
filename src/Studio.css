@@ -373,7 +373,7 @@
   position: fixed;
   z-index: 30;
   left: 50%;
-  bottom: var(--studio-keyboard-offset, 0px);
+  bottom: 0;
   width: min(calc(100% - 28px), 930px);
   min-width: 0;
   transform: translateX(-50%);
@@ -389,6 +389,12 @@
       transparent
     );
   transition: bottom .08s linear;
+}
+
+.command-dock.is-input-focused {
+  position: absolute;
+  top: var(--studio-dock-top, auto);
+  bottom: auto;
 }
 
 .command-menu {
