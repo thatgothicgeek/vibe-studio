@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
-  ArrowLeft,
   ChevronRight,
   Circle,
   Command,
@@ -11,7 +10,6 @@ import {
   Home,
   LibraryBig,
   LogOut,
-  RefreshCw,
   Search,
   Sparkles,
   X,
@@ -433,8 +431,6 @@ function StudioApp() {
   const [signals, setSignals] = useState({ status: 'loading', data: [] })
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [navHistory, setNavHistory] = useState([])
-  const [refreshingSignals, setRefreshingSignals] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -473,48 +469,11 @@ function StudioApp() {
 
   function navigate(target) {
     const next = target === 'settings' ? 'home' : target
-    if (next === activeApp) {
-      setMenuOpen(false)
-      return
-    }
-
-    setNavHistory((history) => [...history, activeApp].slice(-20))
     setActiveApp(next)
     setMenuOpen(false)
   }
 
-  function goBack() {
-    setNavHistory((history) => {
-      if (!history.length) return history
-      const previous = history[history.length - 1]
-      setActiveApp(previous)
-      return history.slice(0, -1)
-    })
-  }
-
-  async function refreshSignalView() {
-    if (refreshingSignals) return
-
-    setRefreshingSignals(true)
-
-    try {
-      const data = await fetchSignals(undefined, 20)
-      setSignals({ status: 'ready', data })
-    } catch {
-      setSignals((current) => (
-        current.data.length
-          ? current
-          : { status: 'error', data: [] }
-      ))
-    } finally {
-      setRefreshingSignals(false)
-    }
-  }
-
   const currentApp = APP_DEFINITIONS.find((item) => item.id === activeApp)
-  const screenLabel = activeApp === 'home' ? 'Home' : currentApp?.label ?? 'Studio'
-  const canGoBack = navHistory.length > 0
-  const canRefreshSignals = activeApp === 'home' || activeApp === 'signal'
 
   return (
     <div className="vibe-os">
@@ -524,90 +483,47 @@ function StudioApp() {
         <div className="os-environment-shade" />
       </div>
 
-      <div className="os-chrome">
-        <header className="system-bar">
-          <div className="vibe-menu-anchor">
-            <button
-              type="button"
-              className={`vibe-button${menuOpen ? ' is-open' : ''}`}
-              onClick={() => setMenuOpen((value) => !value)}
-              aria-label="Open Vibe navigation"
-              aria-expanded={menuOpen}
-            >
-              <StudioMark />
-            </button>
+      <header className="os-topbar">
+        <div className="vibe-menu-anchor">
+          <button
+            type="button"
+            className={`vibe-button${menuOpen ? ' is-open' : ''}`}
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-label="Open Vibe navigation"
+            aria-expanded={menuOpen}
+          >
+            <StudioMark />
+          </button>
 
-            <VibeMenu
-              open={menuOpen}
-              activeApp={activeApp}
-              onClose={() => setMenuOpen(false)}
-              onNavigate={navigate}
-              onSearch={() => setSearchOpen(true)}
-            />
-          </div>
+          <VibeMenu
+            open={menuOpen}
+            activeApp={activeApp}
+            onClose={() => setMenuOpen(false)}
+            onNavigate={navigate}
+            onSearch={() => setSearchOpen(true)}
+          />
+        </div>
 
-          <div className="system-brand" aria-label="The Geek Guide">
-            THE GEEK GUIDE
-          </div>
+        <button
+          type="button"
+          className="site-title-button"
+          onClick={() => navigate('home')}
+          aria-label="Go to Home"
+        >
+          THE GEEK GUIDE
+        </button>
 
-          <div className="system-bar-spacer" aria-hidden="true" />
-        </header>
-
-        <nav className="context-bar" aria-label={`${screenLabel} controls`}>
-          <div className="context-controls context-controls-left">
-            <button
-              type="button"
-              className="browser-tool"
-              onClick={() => navigate('home')}
-              aria-label="Home"
-              title="Home"
-            >
-              <Home size={21} strokeWidth={1.8} />
-            </button>
-
-            <button
-              type="button"
-              className="browser-tool"
-              onClick={goBack}
-              disabled={!canGoBack}
-              aria-label="Back"
-              title="Back"
-            >
-              <ArrowLeft size={21} strokeWidth={1.8} />
-            </button>
-
-            {canRefreshSignals && (
-              <button
-                type="button"
-                className={`browser-tool${refreshingSignals ? ' is-refreshing' : ''}`}
-                onClick={refreshSignalView}
-                disabled={refreshingSignals}
-                aria-label="Refresh Signals"
-                title="Refresh Signals"
-              >
-                <RefreshCw size={21} strokeWidth={1.8} />
-              </button>
-            )}
-          </div>
-
-          <div className="context-title" aria-current="page">
-            {screenLabel}
-          </div>
-
-          <div className="context-controls context-controls-right">
-            <button
-              type="button"
-              className="search-button"
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search Vibe"
-            >
-              <Search size={21} strokeWidth={1.8} />
-              <span>Search</span>
-              <kbd>⌘K</kbd>
-            </button>
-          </div>
-        </nav>
-      </div>
+        <button
+          type="button"
+          className="search-button"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search Vibe"
+        >
+          <Search size={21} strokeWidth={1.8} />
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
+      </header>
 
       <main className="os-content">
         {activeApp === 'home' && (
