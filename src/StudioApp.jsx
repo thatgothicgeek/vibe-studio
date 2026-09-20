@@ -264,10 +264,7 @@ function CommandMenu({
           role="option"
           aria-selected={index === selectedIndex}
           className={`command-suggestion${index === selectedIndex ? ' is-selected' : ''}`}
-          onPointerDown={(event) => {
-            event.preventDefault()
-            onSelect(suggestion.command)
-          }}
+          onClick={() => onSelect(suggestion.command)}
         >
           <b>{suggestion.command}</b>
           <span>{suggestion.detail}</span>
@@ -306,7 +303,7 @@ function StudioApp() {
 
     setHistory(fresh)
     setContext('home')
-    setInput('')
+    writeEditorValue('', false)
     setCommandMenuDismissed(false)
     setSuggestionIndex(0)
     setFocusId(fresh[0].id)
@@ -331,7 +328,7 @@ function StudioApp() {
     ])
 
     setContext(response.context)
-    setInput('')
+    writeEditorValue('', false)
     setCommandMenuDismissed(false)
     setSuggestionIndex(0)
     setFocusId(response.message.id)
@@ -483,71 +480,91 @@ function StudioApp() {
     return () => window.removeEventListener('keydown', resume)
   }, [idle, resumeFromIdle])
 
-  function completeSuggestion(command) {
-    setInput(command)
-    setCommandMenuDismissed(true)
-    setSuggestionIndex(0)
+  function placeCaretAtEnd(node) {
+    const selection = window.getSelection()
+    if (!selection) return
+
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    range.collapse(false)
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
+
+  function writeEditorValue(value, focus = true) {
+    setInput(value)
 
     window.requestAnimationFrame(() => {
-      inputRef.current?.focus()
-      inputRef.current?.setSelectionRange(
-        command.length,
-        command.length,
-      )
+      const node = inputRef.current
+      if (!node) return
+
+      if (node.textContent !== value) {
+        node.textContent = value
+      }
+
+      if (focus) {
+        node.focus({ preventScroll: true })
+        placeCaretAtEnd(node)
+      }
     })
   }
 
+  function completeSuggestion(command) {
+    setCommandMenuDismissed(true)
+    setSuggestionIndex(0)
+    writeEditorValue(command)
+  }
+
   function handleInputChange(event) {
-    setInput(event.target.value)
+    setInput(event.currentTarget.textContent ?? '')
     setCommandMenuDismissed(false)
     setSuggestionIndex(0)
   }
 
   function handleInputKeyDown(event) {
-    if (!suggestions.length) {
-      if (event.key === 'Escape') {
-        setCommandMenuDismissed(true)
-      }
-      return
-    }
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      setSuggestionIndex((current) => (
-        (current + 1) % suggestions.length
-      ))
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setSuggestionIndex((current) => (
-        (current - 1 + suggestions.length) % suggestions.length
-      ))
-      return
-    }
-
     if (event.key === 'Escape') {
       event.preventDefault()
       setCommandMenuDismissed(true)
       return
     }
 
-    const selected = suggestions[suggestionIndex]
-    const exact = input.trim().toLowerCase() === selected?.command
+    if (suggestions.length) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSuggestionIndex((current) => (
+          (current + 1) % suggestions.length
+        ))
+        return
+      }
 
-    if (
-      event.key === 'Tab' ||
-      (event.key === 'Enter' && !exact)
-    ) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSuggestionIndex((current) => (
+          (current - 1 + suggestions.length) % suggestions.length
+        ))
+        return
+      }
+
+      const selected = suggestions[suggestionIndex]
+      const exact = input.trim().toLowerCase() === selected?.command
+
+      if (
+        event.key === 'Tab' ||
+        (event.key === 'Enter' && !exact)
+      ) {
+        event.preventDefault()
+        completeSuggestion(selected.command)
+        return
+      }
+    }
+
+    if (event.key === 'Enter') {
       event.preventDefault()
-      completeSuggestion(selected.command)
+      submitInput()
     }
   }
 
-  function handleSubmit(event) {
-    event.preventDefault()
-
+  function submitInput() {
     const resolved = resolveShellInput(input, context)
 
     if (resolved.type === 'empty') return
@@ -587,7 +604,7 @@ function StudioApp() {
       response,
     ])
 
-    setInput('')
+    writeEditorValue('', false)
     setCommandMenuDismissed(false)
     setSuggestionIndex(0)
     setFocusId(response.id)
@@ -657,31 +674,51 @@ function StudioApp() {
           onSelect={completeSuggestion}
         />
 
-        <form className="command-form" onSubmit={handleSubmit}>
+        <div className="command-form" role="search">
           <span className="command-prefix" aria-hidden="true">
             <Command size={15} strokeWidth={1.7} />
           </span>
 
-          <input
+          <div
             ref={inputRef}
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
-            placeholder="Type a command or choose an option…"
+            className="command-editor"
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
             aria-label="Vibe command"
             aria-autocomplete="list"
             aria-expanded={suggestions.length > 0}
-            autoComplete="off"
+            aria-multiline="false"
+            data-placeholder="Type a command or choose an option…"
+            inputMode="text"
+            enterKeyHint="send"
+            autoCorrect="off"
             autoCapitalize="none"
-            spellCheck="false"
+            spellCheck={false}
+            onInput={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            onFocus={() => setInputFocused(true)}
+            onBlur={(event) => {
+              if (!dockRef.current?.contains(event.relatedTarget)) {
+                setInputFocused(false)
+              }
+            }}
+            onPaste={(event) => {
+              event.preventDefault()
+              const text = event.clipboardData.getData('text/plain')
+              document.execCommand('insertText', false, text)
+            }}
           />
 
-          <button type="submit" className="send-button" aria-label="Send command">
+          <button
+            type="button"
+            className="send-button"
+            aria-label="Send command"
+            onClick={submitInput}
+          >
             <CornerDownLeft size={16} strokeWidth={1.8} />
           </button>
-        </form>
+        </div>
 
         <div className="command-hints" aria-hidden="true">
           <span>type / for commands</span>
