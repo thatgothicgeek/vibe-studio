@@ -288,6 +288,7 @@ function StudioApp() {
   const [suggestionIndex, setSuggestionIndex] = useState(0)
 
   const inputRef = useRef(null)
+  const dockRef = useRef(null)
   const rowRefs = useRef(new Map())
 
   const suggestions = useMemo(() => {
@@ -394,21 +395,31 @@ function StudioApp() {
 
     const syncViewport = () => {
       const height = viewport?.height ?? window.innerHeight
-      const offsetTop = viewport?.offsetTop ?? 0
-      const keyboardOffset = Math.max(
-        0,
-        window.innerHeight - height - offsetTop,
-      )
 
       root.style.setProperty(
         '--studio-visual-height',
         `${Math.round(height)}px`,
       )
 
-      root.style.setProperty(
-        '--studio-keyboard-offset',
-        `${Math.round(keyboardOffset)}px`,
-      )
+      if (
+        inputFocused &&
+        viewport &&
+        dockRef.current
+      ) {
+        const pageTop = viewport.pageTop
+        const dockHeight = dockRef.current.offsetHeight
+        const top = Math.max(
+          pageTop + 8,
+          pageTop + height - dockHeight - 8,
+        )
+
+        root.style.setProperty(
+          '--studio-dock-top',
+          `${Math.round(top)}px`,
+        )
+      } else {
+        root.style.removeProperty('--studio-dock-top')
+      }
     }
 
     syncViewport()
@@ -422,9 +433,9 @@ function StudioApp() {
       viewport?.removeEventListener('scroll', syncViewport)
       window.removeEventListener('resize', syncViewport)
       root.style.removeProperty('--studio-visual-height')
-      root.style.removeProperty('--studio-keyboard-offset')
+      root.style.removeProperty('--studio-dock-top')
     }
-  }, [])
+  }, [inputFocused, suggestions.length])
 
   useEffect(() => {
     let timer
@@ -624,7 +635,10 @@ function StudioApp() {
         </section>
       </main>
 
-      <div className="command-dock">
+      <div
+        ref={dockRef}
+        className={`command-dock${inputFocused ? ' is-input-focused' : ''}`}
+      >
         <CommandMenu
           suggestions={suggestions}
           selectedIndex={suggestionIndex}
