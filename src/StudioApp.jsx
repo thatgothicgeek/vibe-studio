@@ -13,7 +13,6 @@ import {
   LogOut,
   Plus,
   Search,
-  Settings2,
   Sparkles,
   X,
 } from 'lucide-react'
@@ -431,11 +430,6 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
       >
         <Search size={20} strokeWidth={1.7} />
         <span>Search / Command</span>
-      </button>
-
-      <button type="button" role="menuitem">
-        <Settings2 size={20} strokeWidth={1.7} />
-        <span>Settings</span>
       </button>
 
       <div className="vibe-menu-status">
