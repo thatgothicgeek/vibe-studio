@@ -62,6 +62,7 @@ test(
     const server = createStudioServer({
       dist,
       hubToken: 'server-only-fixture-token',
+      hubActionToken: 'server-only-action-token',
       auth,
       fetchHub: async (...args) => {
         calls.push(args)
@@ -259,6 +260,35 @@ test(
     assert.equal(
       calls[0][1].redirect,
       'error',
+    )
+
+    const refresh = await signedIn(
+      '/api/actions/refresh',
+      { method: 'POST' },
+    )
+
+    assert.equal(refresh.status, 200)
+    assert.equal(
+      calls[1][0],
+      'https://hub.thegeek.guide/api/actions/refresh',
+    )
+    assert.equal(
+      calls[1][1].headers.Authorization,
+      'Bearer server-only-action-token',
+    )
+
+    const refreshStatus = await signedIn(
+      '/api/actions/refresh/example-request',
+    )
+
+    assert.equal(refreshStatus.status, 200)
+    assert.equal(
+      calls[2][0].href,
+      'https://hub.thegeek.guide/api/actions/refresh/example-request',
+    )
+    assert.equal(
+      calls[2][1].headers.Authorization,
+      'Bearer server-only-fixture-token',
     )
 
     const logout = await signedIn(
