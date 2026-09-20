@@ -289,6 +289,7 @@ function StudioApp() {
 
   const inputRef = useRef(null)
   const dockRef = useRef(null)
+  const headerRef = useRef(null)
   const rowRefs = useRef(new Map())
 
   const suggestions = useMemo(() => {
@@ -380,9 +381,20 @@ function StudioApp() {
     const frame = window.requestAnimationFrame(() => {
       const node = rowRefs.current.get(focusId)
 
-      node?.scrollIntoView({
+      if (!node) return
+
+      const headerHeight =
+        headerRef.current?.getBoundingClientRect().height ?? 68
+
+      const targetTop =
+        window.scrollY +
+        node.getBoundingClientRect().top -
+        headerHeight -
+        14
+
+      window.scrollTo({
+        top: Math.max(0, targetTop),
         behavior: 'smooth',
-        block: 'start',
       })
     })
 
@@ -588,7 +600,7 @@ function StudioApp() {
 
   return (
     <div className="studio-shell">
-      <header className="shell-header">
+      <header ref={headerRef} className="shell-header">
         <a className="shell-brand" href="/studio" aria-label="Vibe Studio home">
           <span className="shell-mark" aria-hidden="true">V</span>
           <span>
