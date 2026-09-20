@@ -137,8 +137,8 @@
 
 .vibe-button,
 .search-button,
-.context-button,
-.back-button,
+.browser-tool,
+.create-tool,
 .widget-header button {
   min-width: 44px;
   min-height: 44px;
@@ -160,6 +160,54 @@
   background: rgba(255, 255, 255, .045);
 }
 
+.browser-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.browser-tool,
+.create-tool {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  color: #b7bac6;
+  background: transparent;
+  cursor: pointer;
+}
+
+.browser-tool:hover:not(:disabled) {
+  color: var(--paper);
+  background: rgba(255, 255, 255, .05);
+}
+
+.browser-tool:disabled {
+  opacity: .3;
+  cursor: default;
+}
+
+.create-tool {
+  margin-left: 3px;
+  color: #120e18;
+  background: linear-gradient(112deg, #8f65fa 0%, #c35bd9 58%, #ef5ac8 100%);
+  box-shadow: 0 0 22px rgba(155, 115, 218, .16);
+}
+
+.create-tool:hover {
+  filter: brightness(1.1);
+}
+
+.browser-tool.is-refreshing svg {
+  animation: toolbar-spin .8s linear infinite;
+}
+
 .os-mark {
   display: grid;
   width: 34px;
@@ -178,37 +226,15 @@
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 10px;
-  color: #808596;
+  color: #9a9eac;
   white-space: nowrap;
 }
 
 .topbar-title span {
   overflow: hidden;
   text-overflow: ellipsis;
-  font: 600 11px/1 var(--mono);
+  font: 650 12px/1 var(--mono);
   letter-spacing: .14em;
-}
-
-.topbar-title b {
-  color: #b7bac6;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.context-button {
-  padding: 0 12px;
-  border: 1px solid rgba(124, 130, 158, .22);
-  border-radius: 11px;
-  color: #aeb1bf;
-  background: rgba(17, 19, 31, .68);
-  font-size: 13px;
 }
 
 .search-button {
@@ -223,7 +249,7 @@
 }
 
 .search-button span {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .search-button kbd {
@@ -232,7 +258,7 @@
   border-radius: 6px;
   color: #858a9c;
   background: #121522;
-  font: 11px/1.3 var(--mono);
+  font: 13px/1.35 var(--mono);
 }
 
 /* Main navigation menu */
@@ -253,7 +279,7 @@
 .menu-section-label {
   padding: 9px 11px 7px;
   color: #7b8091;
-  font: 600 11px/1 var(--mono);
+  font: 650 12px/1 var(--mono);
   letter-spacing: .1em;
   text-transform: uppercase;
 }
@@ -261,8 +287,8 @@
 .vibe-menu-popover button {
   display: grid;
   width: 100%;
-  min-height: 46px;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 50px;
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
   gap: 11px;
   padding: 0 12px;
@@ -271,7 +297,7 @@
   color: #c3c5cf;
   background: transparent;
   text-align: left;
-  font-size: 15px;
+  font-size: 16px;
   cursor: pointer;
 }
 
@@ -281,10 +307,6 @@
 }
 
 .vibe-menu-popover button.is-active {
-  color: var(--cyan);
-}
-
-.vibe-menu-popover button > svg:last-child {
   color: var(--cyan);
 }
 
@@ -329,25 +351,17 @@
   gap: clamp(34px, 5vw, 58px);
 }
 
-/* Home greeting + Create */
-.home-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(180px, 18vw, 220px);
-  align-items: stretch;
-  gap: 18px;
-}
-
+/* Home greeting */
 .home-intro {
   display: grid;
-  align-content: end;
-  gap: 10px;
-  min-width: 0;
-  padding: 12px 4px 8px;
+  gap: 12px;
+  max-width: 760px;
+  padding: 6px 4px 0;
 }
 
 .app-kicker {
-  color: #7b8091;
-  font: 600 11px/1 var(--mono);
+  color: #8d91a1;
+  font: 650 12px/1 var(--mono);
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -356,7 +370,7 @@
 .app-view-heading h1 {
   margin: 0;
   color: var(--paper);
-  font-size: clamp(30px, 4vw, 44px);
+  font-size: clamp(34px, 4.2vw, 46px);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -.045em;
@@ -364,70 +378,11 @@
 }
 
 .daily-wisdom {
-  max-width: 620px;
-  margin: 3px 0 0;
-  color: #c4becb;
-  font-size: clamp(15px, 1.4vw, 18px);
+  max-width: 660px;
+  margin: 0;
+  color: #c9c3cf;
+  font-size: clamp(17px, 1.5vw, 20px);
   line-height: 1.5;
-}
-
-.home-create-square {
-  aspect-ratio: 1;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: 1fr auto;
-  align-items: end;
-  gap: 12px;
-  padding: 20px;
-  border: 1px solid rgba(167, 149, 240, .34);
-  border-radius: 28px;
-  color: inherit;
-  background:
-    linear-gradient(145deg, rgba(95, 68, 143, .28), rgba(30, 23, 51, .62));
-  box-shadow:
-    0 18px 48px rgba(3, 3, 11, .28),
-    0 0 30px rgba(155, 115, 218, .08);
-  backdrop-filter: blur(18px);
-  text-align: left;
-  cursor: pointer;
-}
-
-.home-create-square:hover {
-  border-color: rgba(112, 215, 226, .42);
-}
-
-.home-create-icon {
-  grid-column: 1 / -1;
-  align-self: start;
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border: 1px solid rgba(161, 123, 224, .4);
-  border-radius: 16px;
-  color: var(--purple);
-  background: linear-gradient(135deg, rgba(143, 101, 250, .22), rgba(239, 90, 200, .13));
-}
-
-.home-create-copy {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-}
-
-.home-create-copy b {
-  font-size: 22px;
-  line-height: 1.1;
-}
-
-.home-create-copy small {
-  color: #a0a4b3;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.home-create-square > svg {
-  color: #767b8d;
 }
 
 /* Home widget board */
@@ -483,8 +438,8 @@
   align-items: center;
   gap: 9px;
   color: #d2cfd7;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 17px;
+  font-weight: 680;
 }
 
 .widget-title svg {
@@ -537,13 +492,13 @@
 .work-card small,
 .work-card em {
   color: #9499aa;
-  font: 12px/1.4 var(--mono);
+  font: 13px/1.45 var(--mono);
 }
 
 .signal-lead-copy b {
   overflow-wrap: anywhere;
   color: #e8e5ea;
-  font-size: clamp(16px, 1.5vw, 20px);
+  font-size: clamp(18px, 1.6vw, 22px);
   line-height: 1.35;
 }
 
@@ -596,7 +551,7 @@
   border: 1px solid #3b4052;
   border-radius: 8px;
   color: #858a9b;
-  font: 11px/1 var(--mono);
+  font: 13px/1 var(--mono);
 }
 
 .signal-mini-copy {
@@ -609,8 +564,8 @@
   display: -webkit-box;
   overflow: hidden;
   color: #dcd9e0;
-  font-size: 14px;
-  font-weight: 620;
+  font-size: 15px;
+  font-weight: 630;
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -653,8 +608,8 @@
 .work-card b {
   overflow-wrap: anywhere;
   color: #e2dfe5;
-  font-size: 15px;
-  line-height: 1.35;
+  font-size: 16px;
+  line-height: 1.4;
 }
 
 .work-card em {
@@ -676,7 +631,7 @@
   border: 1px solid currentColor;
   border-radius: 10px;
   color: #777c8e;
-  font: 700 12px/1 var(--mono);
+  font: 700 13px/1 var(--mono);
 }
 
 .rank-s { color: var(--magenta); }
@@ -712,8 +667,8 @@
   max-width: 650px;
   margin: 13px 0 0;
   color: #a1a5b4;
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 17px;
+  line-height: 1.65;
 }
 
 .app-panel {
@@ -744,14 +699,14 @@
 .full-signal-row small,
 .desk-row small {
   color: #9498a8;
-  font: 12px/1.45 var(--mono);
+  font: 13px/1.5 var(--mono);
 }
 
 .full-signal-row b,
 .desk-row b {
   color: #e2dfe6;
-  font-size: 16px;
-  line-height: 1.45;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 .create-type-grid {
@@ -788,12 +743,12 @@
 }
 
 .create-type-card b {
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .create-type-card span {
-  color: #979baa;
-  font-size: 14px;
+  color: #a7aab8;
+  font-size: 15px;
   line-height: 1.5;
 }
 
@@ -839,7 +794,7 @@
 
 .library-empty span {
   max-width: 520px;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
 }
 
@@ -965,13 +920,13 @@
 .spotlight-section b {
   overflow-wrap: anywhere;
   color: #dfdce3;
-  font-size: 14px;
-  font-weight: 620;
+  font-size: 15px;
+  font-weight: 630;
 }
 
 .spotlight-section small {
   color: #9297a7;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .spotlight-empty {
@@ -988,7 +943,7 @@
   padding: 12px 16px;
   border-top: 1px solid #303447;
   color: #7f8495;
-  font: 11px/1 var(--mono);
+  font: 12px/1 var(--mono);
 }
 
 .current-app-announcement {
@@ -1029,23 +984,11 @@
   }
 
   .topbar-title {
-    justify-content: flex-start;
-    gap: 7px;
+    display: none;
   }
 
-  .topbar-title span {
-    max-width: 110px;
-    font-size: 10px;
-  }
-
-  .topbar-title b {
-    font-size: 12px;
-  }
-
-  .context-button {
-    min-width: 44px;
-    padding: 0 9px;
-    font-size: 12px;
+  .browser-controls {
+    gap: 2px;
   }
 
   .search-button {
@@ -1069,11 +1012,6 @@
     gap: 26px;
   }
 
-  .home-hero {
-    grid-template-columns: minmax(0, 1fr) 136px;
-    gap: 12px;
-  }
-
   .home-intro {
     gap: 8px;
     padding: 4px 0;
@@ -1085,34 +1023,12 @@
 
   .home-intro h1,
   .app-view-heading h1 {
-    font-size: clamp(26px, 7.5vw, 32px);
+    font-size: clamp(32px, 8.5vw, 38px);
   }
 
   .daily-wisdom {
-    font-size: 14px;
-    line-height: 1.45;
-  }
-
-  .home-create-square {
-    width: 136px;
-    min-height: 136px;
-    justify-self: end;
-    padding: 15px;
-    border-radius: 24px;
-  }
-
-  .home-create-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 13px;
-  }
-
-  .home-create-copy b {
-    font-size: 18px;
-  }
-
-  .home-create-copy small {
-    font-size: 12px;
+    font-size: 17px;
+    line-height: 1.5;
   }
 
   .widget-board {
@@ -1126,7 +1042,7 @@
   }
 
   .widget-title {
-    font-size: 15px;
+    font-size: 17px;
   }
 
   .signal-lead-card {
@@ -1135,7 +1051,7 @@
   }
 
   .signal-lead-copy b {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .signal-story-rail {
@@ -1149,14 +1065,14 @@
   }
 
   .signal-mini-copy b {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .signal-lead-copy small,
   .signal-mini-copy small,
   .work-card small,
   .work-card em {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .work-card {
@@ -1165,7 +1081,7 @@
   }
 
   .work-card b {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .create-type-grid {
@@ -1195,19 +1111,6 @@
   }
 }
 
-/* Narrow phones: allow the Create square to wrap beneath the greeting. */
-@media (max-width: 360px) {
-  .home-hero {
-    grid-template-columns: 1fr;
-  }
-
-  .home-create-square {
-    width: 150px;
-    min-height: 150px;
-    justify-self: start;
-  }
-}
-
 /* Phone landscape must stay compact instead of becoming a desktop layout. */
 @media (max-height: 560px) and (orientation: landscape) {
   .os-topbar {
@@ -1224,11 +1127,6 @@
     gap: 16px;
   }
 
-  .home-hero {
-    grid-template-columns: minmax(0, 1fr) 148px;
-    gap: 14px;
-  }
-
   .home-intro {
     gap: 7px;
     padding: 0;
@@ -1241,25 +1139,6 @@
 
   .daily-wisdom {
     font-size: 14px;
-  }
-
-  .home-create-square {
-    min-height: 148px;
-    padding: 14px;
-    border-radius: 18px;
-  }
-
-  .home-create-icon {
-    width: 40px;
-    height: 40px;
-  }
-
-  .home-create-copy b {
-    font-size: 17px;
-  }
-
-  .home-create-copy small {
-    font-size: 11px;
   }
 
   .widget-board {
@@ -1284,7 +1163,7 @@
     padding: 12px;
   }
 
-  .signal-mini-grid {
+  .signal-story-rail {
     gap: 8px;
   }
 
@@ -1317,10 +1196,6 @@
     width: min(calc(100% - 72px), 1240px);
   }
 
-  .home-hero {
-    grid-template-columns: minmax(0, 1fr) 220px;
-  }
-
   .home-intro h1,
   .app-view-heading h1 {
     font-size: 44px;
@@ -1334,6 +1209,10 @@
   .work-card b {
     font-size: 15px;
   }
+}
+
+@keyframes toolbar-spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes studio-atmosphere {
