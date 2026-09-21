@@ -1,444 +1,1281 @@
-import { useEffect, useRef, useState } from 'react'
 import {
-  Activity,
-  ArrowUpRight,
-  BarChart3,
-  BookOpen,
-  Boxes,
-  Clapperboard,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+import {
+  Archive,
   ChevronRight,
-  CircleDot,
-  Compass,
-  FilePlus2,
-  FolderOpen,
-  Gamepad2,
-  Info,
-  LayoutDashboard,
-  Laptop,
-  Menu,
-  Newspaper,
-  Radio,
-  Settings2,
-  SlidersHorizontal,
+  Command,
   Sparkles,
-  Tv,
-  Users,
   X,
 } from 'lucide-react'
 import './Studio.css'
-import SignalDetail from './SignalDetail'
-import { fetchDashboardResource, fetchSignals, parseDashboard, parseHealth } from './dashboardApi'
+import {
+  IconClock,
+  IconComics,
+  IconCompassProcess,
+  IconCreate,
+  IconDesk,
+  IconEdit,
+  IconBug,
+  IconExternalLink,
+  IconGames,
+  IconHome,
+  IconLibrary,
+  IconLogout,
+  IconMovie,
+  IconRefresh,
+  IconSearch,
+  IconSend,
+  IconSignal,
+  IconStatus,
+  IconTV,
+  IconTech,
+  IconYinYang,
+} from './StudioIcons'
+import {
+  correctSignalCategory,
+  fetchDashboard,
+  fetchRefreshRequest,
+  fetchSignal,
+  fetchSignals,
+  requestManualRefresh,
+} from './dashboardApi'
+import {
+  APP_DEFINITIONS,
+  COMMANDS,
+  commandMatches,
+  greetingForDate,
+  searchItems,
+  wisdomForDate,
+} from './homeModel'
 
-const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard },
-  { label: 'Discover', icon: Compass },
-  { label: 'News Desk', icon: Newspaper, badge: '04' },
-  { label: 'Create', icon: FilePlus2 },
-  { label: 'Sources', icon: Radio },
-  { label: 'Audience', icon: Users },
-  { label: 'Distribution', icon: BarChart3 },
-  { label: 'System', icon: Settings2 },
+const CATEGORY_ORDER = ['TV', 'Movies', 'Comics', 'Games', 'Tech']
+const DESK_SESSION_KEY = 'vibe-studio-desk-signals-v1'
+
+const WORK_PREVIEW = [
+  {
+    id: 'iphone-security',
+    title: 'The Geek Guide to iPhone Security',
+    type: 'Guide',
+    state: 'Idea',
+    updated: 'Today',
+  },
+  {
+    id: 'weekend-watchlist',
+    title: 'Weekend Watchlist',
+    type: 'Collection',
+    state: 'Draft',
+    updated: 'Recently',
+  },
+  {
+    id: 'apple-brief',
+    title: 'Apple Event Brief',
+    type: 'News Brief',
+    state: 'Reviewing',
+    updated: 'Recently',
+  },
 ]
 
-const categorySignals = [
-  { name: 'TV', color: 'violet', Icon: Tv },
-  { name: 'Movies', color: 'coral', Icon: Clapperboard },
-  { name: 'Comics', color: 'gold', Icon: BookOpen },
-  { name: 'Games', color: 'green', Icon: Gamepad2 },
-  { name: 'Tech', color: 'cyan', Icon: Laptop },
+const CREATE_TYPES = [
+  { label: 'News Brief', detail: 'Turn a Signal into a concise story.' },
+  { label: 'Guide', detail: 'Build a structured evergreen guide.' },
+  { label: 'Review', detail: 'Start a TV, movie, or product review.' },
+  { label: 'Explainer', detail: 'Make something complex easier to understand.' },
 ]
 
-const activity = [
-  ['Signal captured', 'New trailer data is ready for review', '12 min ago'],
-  ['Desk updated', 'A story moved to Developing', '38 min ago'],
-  ['Collection edited', 'Weekend Watchlist received a note', '1 hr ago'],
-]
+function normalizeCategory(category) {
+  if (category === 'Gaming') return 'Games'
+  if (category === 'Technology') return 'Tech'
+  return CATEGORY_ORDER.includes(category) ? category : 'Other'
+}
+
+function CategoryIcon({ category, size = 18 }) {
+  const normalized = normalizeCategory(category)
+  const props = { size, strokeWidth: 1.8 }
+
+  if (normalized === 'TV') return <IconTV {...props} />
+  if (normalized === 'Movies') return <IconMovie {...props} />
+  if (normalized === 'Comics') return <IconComics {...props} />
+  if (normalized === 'Games') return <IconGames {...props} />
+  if (normalized === 'Tech') return <IconTech {...props} />
+
+  return <IconSignal {...props} />
+}
+
+function categoryLabel(category) {
+  const normalized = normalizeCategory(category)
+  return normalized === 'Other' ? 'Unresolved' : normalized
+}
+
+function safeArticleUrl(value) {
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null
+  } catch {
+    return null
+  }
+}
+
+function formatRefreshTime(value) {
+  if (!value) return 'No refresh recorded yet'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function topByCategoryFromSignals(signals) {
+  const leaders = Object.fromEntries(
+    CATEGORY_ORDER.map((category) => [category, null]),
+  )
+
+  for (const signal of signals) {
+    const category = normalizeCategory(signal.category)
+
+    if (
+      Object.hasOwn(leaders, category) &&
+      leaders[category] === null
+    ) {
+      leaders[category] = signal
+    }
+  }
+
+  return leaders
+}
 
 function StudioMark() {
   return (
-    <div className="studio-mark" aria-hidden="true">
-      <span>V</span>
+    <span className="os-mark" aria-hidden="true">
+      <IconYinYang size={28} strokeWidth={1.8} />
+    </span>
+  )
+}
+
+function WidgetHeader({ title, Icon, actionLabel, onAction }) {
+  return (
+    <div className="widget-header">
+      <span className="widget-title">
+        {Icon && <Icon size={18} strokeWidth={1.7} aria-hidden="true" />}
+        {title}
+      </span>
+      {onAction && (
+        <button type="button" onClick={onAction} aria-label={actionLabel ?? `Open ${title}`}>
+          <ChevronRight size={18} strokeWidth={1.8} />
+        </button>
+      )}
     </div>
   )
 }
 
-function Sidebar({ activePage, onNavigate, open, onClose }) {
+function SignalWidget({ leaders, status, onOpen, onPreview }) {
+  const stories = CATEGORY_ORDER
+    .map((category) => ({
+      category,
+      signal: leaders?.[category] ?? null,
+    }))
+    .filter(({ signal }) => signal)
+
   return (
-    <>
-      {open && <button className="sidebar-scrim" onClick={onClose} aria-label="Close navigation" />}
-      <aside className={`studio-sidebar${open ? ' is-open' : ''}`}>
-        <div className="sidebar-top">
-          <a className="studio-wordmark" href="/studio" onClick={onClose}>
-            <StudioMark />
-            <span><b>VIBE</b> / STUDIO</span>
-          </a>
-          <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close navigation"><X size={18} /></button>
-        </div>
-        <div className="workspace-label">Editorial control / V1</div>
-        <nav className="studio-nav" aria-label="Studio sections">
-          {navItems.map(({ label, icon: Icon, badge }) => (
-            <button key={label} className={`nav-item${activePage === label ? ' active' : ''}`} onClick={() => onNavigate(label)}>
-              <Icon size={17} strokeWidth={1.8} />
-              <span>{label}</span>
-              {badge && <small>{badge}</small>}
-              {activePage === label && <i aria-hidden="true" />}
+    <section className="home-widget signal-widget">
+      <WidgetHeader
+        title="Top Signals"
+        Icon={IconSignal}
+        actionLabel="Open Signal"
+        onAction={() => onOpen('signal')}
+      />
+
+      {status === 'loading' && <p className="widget-state">Checking the field…</p>}
+      {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
+      {status === 'ready' && stories.length === 0 && <p className="widget-state">Nothing active right now.</p>}
+
+      {stories.length > 0 && (
+        <div className="category-leader-grid" aria-label="Top Signal by category">
+          {stories.map(({ category, signal }) => (
+            <button
+              type="button"
+              className="category-leader-card"
+              key={category}
+              onClick={() => onPreview(signal.signal_id)}
+              aria-label={`${category}: ${signal.headline}`}
+            >
+              <span
+                className={`category-icon category-${category.toLowerCase()}`}
+                title={category}
+                aria-hidden="true"
+              >
+                <CategoryIcon category={category} size={20} />
+              </span>
+
+              <span className="category-leader-copy">
+                <b>{signal.headline}</b>
+                <small>{signal.source_count ?? '—'} sources</small>
+              </span>
+
+              <ChevronRight size={17} aria-hidden="true" />
             </button>
           ))}
-        </nav>
-        <div className="sidebar-footer">
-          <div className="core-pulse"><span className="status-dot" /> Vibe Core <em>standby</em></div>
-          <div className="sidebar-version">Studio V1.0 / internal</div>
         </div>
-      </aside>
-    </>
+      )}
+    </section>
   )
 }
 
-function Header({ page, onMenu }) {
+function WorkWidget({ onOpen }) {
   return (
-    <header className="studio-header">
-      <div className="header-title">
-        <button className="icon-button menu-button" onClick={onMenu} aria-label="Open navigation"><Menu size={20} /></button>
-        <div><span className="eyebrow">VIBE STUDIO / WORKSPACE</span><h1>{page}</h1></div>
+    <section className="home-widget work-widget">
+      <WidgetHeader
+        title="In progress"
+        Icon={IconDesk}
+        actionLabel="Open Desk"
+        onAction={() => onOpen('desk')}
+      />
+
+      <div className="work-card-rail" aria-label="Works in progress">
+        {WORK_PREVIEW.map((item) => (
+          <button type="button" className="work-card" key={item.id} onClick={() => onOpen('desk')}>
+            <span>
+              <small>{item.type} · {item.state}</small>
+              <b>{item.title}</b>
+            </span>
+            <em>{item.updated}</em>
+          </button>
+        ))}
       </div>
-      <div className="header-tools">
-        <span className="header-date">TUE / 16 SEP 2026</span>
-        <span className="header-status"><span className="status-dot" /> SYSTEMS NOMINAL</span>
-        {page === 'Signal Detail' ? <span className="profile-chip profile-metadata" aria-label="Account: JD">JD</span> : <button className="profile-chip" aria-label="Open account menu">JD</button>}
-      </div>
-    </header>
+    </section>
   )
 }
 
-function SectionLabel({ children, action }) {
-  return <div className="section-label"><span>{children}</span>{action && <button className="text-action">{action}<ArrowUpRight size={13} /></button>}</div>
-}
-
-
-function CategoryLeaderCard({ name, color, Icon, signal, count, loading, onOpenSignal }) {
-  const available = Boolean(signal?.signal_id)
+function HomeView({
+  leaders,
+  signalStatus,
+  onOpen,
+  onPreview,
+}) {
+  const now = new Date()
 
   return (
-    <article className={`category-signal-card category-accent-${color}`}>
-      <div className="category-signal-head">
-        <span className="category-signal-name">
-          <Icon size={16} strokeWidth={1.6} aria-hidden="true" />
-          {name}
-        </span>
-        <span className={`rank-badge rank-${signal?.rank_tier?.toLowerCase() ?? 'unranked'}`}>
-          {signal?.rank_tier ?? '—'}
-        </span>
-      </div>
+    <div className="home-view">
+      <section className="home-intro">
+        <h1>{greetingForDate(now)}, James.</h1>
+        <p className="daily-wisdom">“{wisdomForDate(now)}”</p>
+      </section>
 
+      <div className="widget-board">
+        <SignalWidget
+          leaders={leaders}
+          status={signalStatus}
+          onOpen={onOpen}
+          onPreview={onPreview}
+        />
+        <WorkWidget onOpen={onOpen} />
+      </div>
+    </div>
+  )
+}
+
+function RefreshStatus({ dashboard, refreshState }) {
+  const label = refreshState.status === 'PENDING'
+    ? 'Refresh queued'
+    : refreshState.status === 'CLAIMED'
+      ? 'Refreshing…'
+      : refreshState.status === 'FAILED'
+        ? 'Refresh failed'
+        : null
+
+  return (
+    <div className="signal-refresh-status">
+      <span>
+        <IconClock size={16} strokeWidth={1.8} />
+        Last refresh: {formatRefreshTime(dashboard?.last_refresh_at)}
+      </span>
+      {label && <em>{label}</em>}
+    </div>
+  )
+}
+
+function CategoryFilter({ value, onChange }) {
+  return (
+    <div className="category-filter" aria-label="Filter Signal digest by category">
       <button
-        className="category-signal-title"
-        disabled={!available}
-        onClick={() => available && onOpenSignal(signal.signal_id)}
+        type="button"
+        className={value === 'All' ? 'is-active' : ''}
+        onClick={() => onChange('All')}
       >
-        {signal?.headline ?? (loading ? 'Loading signal…' : 'No active signal')}
+        All
       </button>
 
-      <p>
-        {signal?.source_name
-          ? `Lead / ${signal.source_name}`
-          : loading
-            ? 'Checking source coverage…'
-            : 'Lead source unavailable'}
-      </p>
-
-      <div className="category-signal-footer">
-        <span>{count ?? '—'} active</span>
-        <span>{signal?.source_count ?? '—'} sources</span>
-
+      {CATEGORY_ORDER.map((category) => (
         <button
-          className="signal-info-button"
-          disabled={!available}
-          onClick={() => available && onOpenSignal(signal.signal_id)}
-          aria-label={available ? `Open ${name} signal details` : `${name} signal unavailable`}
+          type="button"
+          key={category}
+          className={value === category ? 'is-active' : ''}
+          onClick={() => onChange(category)}
         >
-          <Info size={14} strokeWidth={1.8} />
+          <CategoryIcon category={category} size={17} />
+          <span>{category}</span>
         </button>
-      </div>
-    </article>
+      ))}
+    </div>
   )
 }
 
-function useDashboardResource(url, parse) {
-  const [resource, setResource] = useState({ status: 'loading', data: null })
+function DigestCard({ signal, variant = 'standard', onPreview }) {
+  return (
+    <button
+      type="button"
+      className={`digest-card digest-card-${variant}`}
+      onClick={() => onPreview(signal.signal_id)}
+    >
+      <span className="digest-card-copy">
+        <b>{signal.headline}</b>
+        <small>
+          {signal.lead?.source_name || 'Source pending'}
+          {signal.source_count != null ? ` · ${signal.source_count} sources` : ''}
+        </small>
+      </span>
 
-  useEffect(() => {
-    const controller = new AbortController()
-    let active = true
-    const timeout = window.setTimeout(() => controller.abort(), 10000)
-
-    fetchDashboardResource(url, controller.signal, parse)
-      .then((data) => { if (active) setResource({ status: 'ready', data }) })
-      .catch(() => { if (active) setResource({ status: 'error', data: null }) })
-      .finally(() => window.clearTimeout(timeout))
-
-    return () => {
-      active = false
-      window.clearTimeout(timeout)
-      controller.abort()
-    }
-  }, [url, parse])
-
-  return resource
+      <ChevronRight size={18} aria-hidden="true" />
+    </button>
+  )
 }
 
-function getGreeting() {
-  const hour = new Date().getHours()
+function DigestSection({ category, stories, onPreview, expanded = false }) {
+  if (!stories.length) return null
 
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
-function Dashboard({ onOpenSignal }) {
-  const dashboard = useDashboardResource('/api/dashboard', parseDashboard)
-  const health = useDashboardResource('/api/health', parseHealth)
-  const signal = dashboard.data?.top_signal
-  const dashboardLoading = dashboard.status === 'loading'
-  const dashboardMessage = dashboardLoading ? 'Loading…' : 'Unavailable'
-  const healthLoading = health.status === 'loading'
-  const hubHealthy = health.data?.hubHealthy === true
-  const databaseHealthy = health.data?.databaseHealthy === true
-  const healthMessage = healthLoading ? 'Checking…' : 'UNAVAILABLE'
+  const [lead, ...rest] = stories
+  const secondary = rest.slice(0, expanded ? 8 : 3)
 
   return (
-    <div className="page-stack">
-      <section className="welcome-row">
-        <div><h2>{getGreeting()}, James.</h2><p>Here&apos;s what deserves your attention.</p></div>
-        <div className="pulse-readout" aria-live="polite" aria-busy={dashboardLoading}>
-          <Activity size={15} /><span>ACTIVE SIGNALS</span>
-          {dashboard.data ? <b>{dashboard.data.active_signal_count}</b> : <span>{dashboardMessage}</span>}
-          <small>in the field</small>
-        </div>
-      </section>
-      <section className="signal-hero" aria-live="polite" aria-busy={dashboardLoading}>
-        <div className="signal-hero-copy">
-          <span className="eyebrow cyan-text">TOP SIGNAL / HIGHEST RANKED STORY</span>
-          <h3>{signal?.headline ?? (dashboardLoading ? 'Loading top signal…' : dashboard.status === 'error' ? 'Top signal unavailable' : 'No top signal yet')}</h3>
-          {signal ? <>
-            {signal.source_name && <p>Lead source / {signal.source_name}</p>}
-            <div className="signal-meta">
-              {signal.category && <span className="meta-category">Category / {signal.category}</span>}
-              <span>Rank / {signal.rank_tier}</span>
-              <span>Sources / {signal.source_count}</span>
-              {signal.story_type && <span>Story type / {signal.story_type}</span>}
-            </div>
-            <div className="signal-badges">
-              {signal.lifecycle_state && <span>{signal.lifecycle_state}</span>}
-              {signal.cluster_state && signal.cluster_state !== signal.lifecycle_state && <span>{signal.cluster_state}</span>}
-            </div>
-          </> : <p>{dashboardLoading ? 'Checking the signal field.' : dashboard.status === 'error' ? 'We couldn’t load signals. Please try again later.' : 'There is no top signal to show right now.'}</p>}
-        </div>
-        <div className={`signal-score rank-${signal?.rank_tier?.toLowerCase() ?? 'unranked'}`}>
-          <span>{signal?.rank_tier ?? '—'}</span><small>SIGNAL RANK</small>
-          <button className="outline-button" disabled={!signal?.signal_id} onClick={() => onOpenSignal(signal.signal_id)}>Open signal <ChevronRight size={14} /></button>
-        </div>
-      </section>
-      <div className="dashboard-grid">
-        <section className="panel category-leader-panel" aria-live="polite" aria-busy={dashboardLoading}>
-          <SectionLabel>TOP BY CATEGORY</SectionLabel>
+    <section className="digest-category-section">
+      <header className="digest-section-header">
+        <span className="digest-section-title">
+          <CategoryIcon category={category} size={22} />
+          <span>{category}</span>
+        </span>
+        <small>{stories.length} active</small>
+      </header>
 
-          <div className="category-leader-grid">
-            {categorySignals.map((item) => (
-              <CategoryLeaderCard
-                key={item.name}
-                {...item}
-                signal={dashboard.data?.top_by_category?.[item.name] ?? null}
-                count={dashboard.data?.category_signal_counts?.[item.name] ?? null}
-                loading={dashboardLoading}
-                onOpenSignal={onOpenSignal}
+      <div className="digest-magazine-layout">
+        <DigestCard
+          signal={lead}
+          variant="hero"
+          onPreview={onPreview}
+        />
+
+        {secondary.length > 0 && (
+          <div className="digest-secondary-grid">
+            {secondary.map((signal) => (
+              <DigestCard
+                key={signal.signal_id}
+                signal={signal}
+                variant="compact"
+                onPreview={onPreview}
               />
             ))}
           </div>
-        </section>
-        <section className="panel news-desk-panel"><SectionLabel action="Open desk">NEWS DESK STATUS</SectionLabel><div className="desk-stat"><span className="desk-number">04</span><div><b>Stories in motion</b><p>Across the editorial workflow</p></div></div><div className="mini-pipeline"><span style={{ '--width': '48%' }}>Signal <b>04</b></span><span style={{ '--width': '30%' }}>Developing <b>—</b></span><span style={{ '--width': '18%' }}>Draft <b>—</b></span><span style={{ '--width': '8%' }}>Ready <b>—</b></span><span style={{ '--width': '3%' }}>Published <b>—</b></span></div></section>
+        )}
       </div>
-      <div className="dashboard-grid bottom-grid">
-        <section className="panel core-panel" aria-live="polite" aria-busy={healthLoading}>
-          <SectionLabel>SYSTEM / CORE STATUS</SectionLabel>
-          <div className="core-status"><div className="core-status-icon"><Boxes size={22} /></div><div>
-            <b>{healthLoading ? 'Checking Hub…' : hubHealthy && databaseHealthy ? 'Hub healthy' : 'Hub health unavailable'}</b>
-            <p>{healthLoading ? 'Checking the API and database connection.' : health.status === 'error' ? 'We couldn’t check Hub health. Please try again later.' : hubHealthy && databaseHealthy ? 'Hub API and database are healthy.' : 'Hub or database is not reporting healthy. Please try again later.'}</p>
-          </div></div>
-          <div className="status-rule"><span>Studio interface</span><b>ONLINE</b></div>
-          <div className="status-rule"><span>Vibe Hub / API</span><b className={hubHealthy ? undefined : 'muted-status'}>{hubHealthy ? 'HEALTHY' : healthMessage}</b></div>
-          <div className="status-rule"><span>Database</span><b className={databaseHealthy ? undefined : 'muted-status'}>{databaseHealthy ? 'HEALTHY' : healthMessage}</b></div>
-        </section>
-        <section className="panel"><SectionLabel action="See activity">RECENT ACTIVITY</SectionLabel><div className="activity-list">{activity.map(([title, copy, time]) => <div className="activity-item" key={title}><span className="activity-icon"><CircleDot size={13} /></span><div><b>{title}</b><p>{copy}</p></div><time>{time}</time></div>)}</div></section>
+    </section>
+  )
+}
+
+function SignalView({
+  signals,
+  status,
+  dashboard,
+  refreshState,
+  onRefresh,
+  onPreview,
+}) {
+  const [category, setCategory] = useState('All')
+
+  const grouped = useMemo(() => {
+    const next = Object.fromEntries(
+      CATEGORY_ORDER.map((name) => [name, []]),
+    )
+
+    for (const signal of signals) {
+      const normalized = normalizeCategory(signal.category)
+      if (Object.hasOwn(next, normalized)) {
+        next[normalized].push(signal)
+      }
+    }
+
+    return next
+  }, [signals])
+
+  const refreshing = ['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)
+  const visibleCategories = category === 'All'
+    ? CATEGORY_ORDER
+    : [category]
+
+  return (
+    <div className="app-view signal-digest-view">
+      <div className="signal-digest-heading">
+        <div className="app-view-heading">
+          <span className="app-kicker">Signal</span>
+          <h1>Digest</h1>
+          <p>Top stories organized by topic. Ranking stays behind the curtain.</p>
+        </div>
+
+        <div className="signal-refresh-block">
+          <RefreshStatus dashboard={dashboard} refreshState={refreshState} />
+          <button
+            type="button"
+            className="signal-refresh-button"
+            onClick={onRefresh}
+            disabled={refreshing}
+          >
+            <IconRefresh
+              size={18}
+              strokeWidth={1.8}
+              className={refreshing ? 'is-spinning' : undefined}
+            />
+            {refreshing ? 'Refreshing' : 'Refresh Signal'}
+          </button>
+        </div>
+      </div>
+
+      {refreshState.status === 'FAILED' && (
+        <p className="signal-refresh-error" role="alert">
+          {refreshState.message || 'Manual refresh is unavailable right now.'}
+        </p>
+      )}
+
+      <CategoryFilter value={category} onChange={setCategory} />
+
+      <div className="signal-magazine" aria-live="polite">
+        {status === 'loading' && <p className="widget-state">Loading Signals…</p>}
+        {status === 'error' && <p className="widget-state">Signal is unavailable right now.</p>}
+
+        {status === 'ready' && visibleCategories.every((name) => grouped[name].length === 0) && (
+          <p className="widget-state">No active stories in this category.</p>
+        )}
+
+        {visibleCategories.map((name) => (
+          <DigestSection
+            key={name}
+            category={name}
+            stories={grouped[name]}
+            onPreview={onPreview}
+            expanded={category !== 'All'}
+          />
+        ))}
       </div>
     </div>
   )
 }
 
-function displayCategory(category) {
-  if (category === 'Gaming') return 'Games'
-  if (category === 'Technology') return 'Tech'
-  return category || 'Unresolved'
-}
-
-function Discover({ onOpenSignal }) {
-  const [signals, setSignals] = useState({ status: 'loading', data: [] })
+function StoryPreview({
+  signalId,
+  onClose,
+  onSendToDesk,
+  onCategoryCorrected,
+  deskSignalIds,
+}) {
+  const [resource, setResource] = useState({
+    status: 'loading',
+    data: null,
+  })
+  const [editingCategory, setEditingCategory] = useState(false)
+  const [pendingCategory, setPendingCategory] = useState('')
+  const [categoryState, setCategoryState] = useState({
+    status: 'idle',
+    message: null,
+  })
 
   useEffect(() => {
+    if (!signalId) return undefined
+
     const controller = new AbortController()
     let active = true
-    const timeout = window.setTimeout(() => controller.abort(), 10000)
 
-    fetchSignals(controller.signal, 24)
-      .then((data) => { if (active) setSignals({ status: 'ready', data }) })
-      .catch(() => { if (active) setSignals({ status: 'error', data: [] }) })
-      .finally(() => window.clearTimeout(timeout))
+    setResource({ status: 'loading', data: null })
+    setEditingCategory(false)
+    setCategoryState({ status: 'idle', message: null })
+
+    fetchSignal(signalId, controller.signal)
+      .then((data) => {
+        if (!active) return
+        setResource({ status: 'ready', data })
+        setPendingCategory(normalizeCategory(data.category))
+      })
+      .catch(() => {
+        if (active) setResource({ status: 'error', data: null })
+      })
 
     return () => {
       active = false
-      window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [])
+  }, [signalId])
 
-  const featured = signals.data[0] ?? null
-  const feed = signals.data.slice(1)
-  const loading = signals.status === 'loading'
-  const categoryCounts = Object.fromEntries(categorySignals.map(({ name }) => [name, 0]))
+  useEffect(() => {
+    if (!signalId) return undefined
 
-  for (const signal of signals.data) {
-    const category = displayCategory(signal.category)
-    if (category in categoryCounts) categoryCounts[category] += 1
+    const root = document.documentElement
+    const body = document.body
+    const scrollY = window.scrollY
+    const previous = {
+      rootOverflow: root.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
+    }
+
+    root.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+
+    return () => {
+      root.style.overflow = previous.rootOverflow
+      body.style.position = previous.bodyPosition
+      body.style.top = previous.bodyTop
+      body.style.width = previous.bodyWidth
+      body.style.overflow = previous.bodyOverflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [signalId])
+
+  useEffect(() => {
+    if (!signalId) return undefined
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [signalId, onClose])
+
+  if (!signalId) return null
+
+  const story = resource.data
+  const excerpt = story?.lead?.excerpt ||
+    story?.articles?.find((article) => article.excerpt)?.excerpt ||
+    null
+  const sourceUrl = safeArticleUrl(
+    story?.articles?.find((article) => article.url)?.url,
+  )
+  const inDesk = story ? deskSignalIds.has(story.signal_id) : false
+
+  async function saveCategoryCorrection() {
+    if (
+      !story ||
+      !CATEGORY_ORDER.includes(pendingCategory) ||
+      normalizeCategory(story.category) === pendingCategory
+    ) {
+      setEditingCategory(false)
+      return
+    }
+
+    setCategoryState({ status: 'saving', message: null })
+
+    try {
+      await correctSignalCategory(
+        story.signal_id,
+        pendingCategory,
+      )
+
+      setResource((current) => ({
+        ...current,
+        data: current.data
+          ? { ...current.data, category: pendingCategory }
+          : current.data,
+      }))
+      setCategoryState({
+        status: 'saved',
+        message: 'Correction saved as Signal feedback.',
+      })
+      setEditingCategory(false)
+      await onCategoryCorrected?.()
+    } catch (error) {
+      setCategoryState({
+        status: 'error',
+        message: error?.message || 'Could not save category correction.',
+      })
+    }
   }
 
   return (
-    <div className="page-stack">
-      <section className="intro-block">
-        <span className="eyebrow cyan-text">SIGNAL FIELD / LIVE VIEW</span>
-        <h2>Discover what&apos;s moving.</h2>
-        <p>Live signals from Vibe Hub, ranked for editorial review and ready to inspect.</p>
-      </section>
+    <div className="story-preview-layer" role="dialog" aria-modal="true" aria-label="Signal story preview">
+      <button type="button" className="story-preview-scrim" onClick={onClose} aria-label="Close story preview" />
 
-      <section className="discover-feature-grid" aria-live="polite" aria-busy={loading}>
-        <div className="feature-placeholder discover-feature-live">
-          <Sparkles size={22} />
-          <span>FEATURED SIGNAL</span>
-          <b>{featured?.headline ?? (loading ? 'Loading featured signal…' : signals.status === 'error' ? 'Signal field unavailable' : 'No active signals')}</b>
-          {featured ? <>
-            <p>{featured.lead.source_name ? `Lead source / ${featured.lead.source_name}` : 'Lead source unavailable'}</p>
-            <div className="discover-feature-meta">
-              <span>{displayCategory(featured.category)}</span>
-              <span>Rank / {featured.rank_tier ?? '—'}</span>
-              <span>{featured.source_count ?? '—'} sources</span>
+      <article className="story-preview">
+        <header className="story-preview-header">
+          <span className="story-preview-category">
+            {story && <CategoryIcon category={story.category} size={20} />}
+            <span>{story ? categoryLabel(story.category) : 'Signal'}</span>
+          </span>
+          <button type="button" className="story-preview-close" onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </header>
+
+        <div className="story-preview-scroll">
+          {resource.status === 'loading' && (
+            <div className="story-preview-state">Loading story preview…</div>
+          )}
+
+          {resource.status === 'error' && (
+            <div className="story-preview-state" role="alert">
+              This story could not be loaded right now.
             </div>
-            <button className="outline-button" onClick={() => onOpenSignal(featured.signal_id)}>Open signal <ChevronRight size={14} /></button>
-          </> : <p>{signals.status === 'error' ? 'We couldn’t load signals from Vibe Hub. Try again after checking Hub status.' : 'Checking the signal field.'}</p>}
+          )}
+
+          {story && (
+            <div className="story-preview-copy">
+              <h2>{story.headline}</h2>
+              <p className="story-preview-source">
+                {story.lead?.source_name || 'Source unavailable'}
+                {story.source_count != null ? ` · ${story.source_count} sources` : ''}
+              </p>
+
+              <div className="story-preview-excerpt">
+                <span>Excerpt</span>
+                <p>{excerpt || 'No source excerpt is available for this story yet.'}</p>
+              </div>
+
+              {editingCategory && (
+                <div className="category-correction">
+                  <div className="category-correction-heading">
+                    <IconBug size={18} />
+                    <span>
+                      Correct category
+                      <small>This is saved as Signal feedback so Compass/Core can learn from the miss later.</small>
+                    </span>
+                  </div>
+
+                  <div className="category-correction-options">
+                    {CATEGORY_ORDER.map((category) => (
+                      <button
+                        type="button"
+                        key={category}
+                        className={pendingCategory === category ? 'is-selected' : ''}
+                        onClick={() => setPendingCategory(category)}
+                      >
+                        <CategoryIcon category={category} size={17} />
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="category-correction-actions">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCategory(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveCategoryCorrection}
+                      disabled={categoryState.status === 'saving'}
+                    >
+                      {categoryState.status === 'saving' ? 'Saving…' : 'Save correction'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoryState.message && !editingCategory && (
+                <p
+                  className={`category-correction-message is-${categoryState.status}`}
+                  role={categoryState.status === 'error' ? 'alert' : undefined}
+                >
+                  {categoryState.message}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="feature-placeholder alt discover-future">
-          <Compass size={22} />
-          <span>DAILY DIGEST / FUTURE</span>
-          <b>A concise read on the field</b>
-          <p>Compass-powered daily digests will group the day&apos;s most meaningful movement here.</p>
-        </div>
-      </section>
+        {story && (
+          <footer className="story-preview-actions">
+            <button
+              type="button"
+              className="story-action"
+              onClick={() => {
+                setPendingCategory(normalizeCategory(story.category))
+                setEditingCategory((value) => !value)
+              }}
+            >
+              <IconEdit size={19} />
+              Edit category
+            </button>
 
-      <section className="panel discover-feed" aria-live="polite" aria-busy={loading}>
-        <SectionLabel>LIVE SIGNALS</SectionLabel>
-        {loading && <p className="discover-state">Loading signals from Vibe Hub…</p>}
-        {signals.status === 'error' && <p className="discover-state">Signal feed unavailable. Check Vibe Hub and refresh.</p>}
-        {signals.status === 'ready' && signals.data.length === 0 && <p className="discover-state">No active signals are available right now.</p>}
-        {feed.map((signal) => (
-          <button className="discover-signal-row" key={signal.signal_id} onClick={() => onOpenSignal(signal.signal_id)}>
-            <span className="discover-signal-copy">
-              <small>{displayCategory(signal.category)}{signal.story_type ? ` / ${signal.story_type}` : ''}</small>
-              <b>{signal.headline}</b>
-              <span>{signal.lead.source_name ? `Lead / ${signal.lead.source_name}` : 'Lead source unavailable'} · {signal.source_count ?? '—'} sources</span>
-            </span>
-            <span className={`discover-row-score rank-${signal.rank_tier?.toLowerCase() ?? 'unranked'}`}><b>{signal.rank_tier ?? '—'}</b><small>RANK</small></span>
-            <ChevronRight size={17} aria-hidden="true" />
+            <button
+              type="button"
+              className="story-action compass-action"
+              disabled
+              title="Compass processing will be enabled later"
+            >
+              <IconCompassProcess size={19} />
+              Compass
+              <small>Soon</small>
+            </button>
+
+            <button
+              type="button"
+              className="story-action desk-action"
+              onClick={() => onSendToDesk(story)}
+              disabled={inDesk}
+            >
+              <IconSend size={19} />
+              {inDesk ? 'In Desk' : 'Send to Desk'}
+            </button>
+
+            {sourceUrl && (
+              <a
+                className="story-action source-action"
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <IconExternalLink size={19} />
+                Read source
+              </a>
+            )}
+          </footer>
+        )}
+      </article>
+    </div>
+  )
+}
+
+function CreateView() {
+  return (
+    <div className="app-view">
+      <div className="app-view-heading">
+        <span className="app-kicker">Create</span>
+        <h1>What are we making?</h1>
+        <p>Choose a starting shape. The guided flow comes next.</p>
+      </div>
+
+      <div className="create-type-grid">
+        {CREATE_TYPES.map((type) => (
+          <button type="button" className="create-type-card" key={type.label}>
+            <Sparkles size={18} />
+            <b>{type.label}</b>
+            <span>{type.detail}</span>
+            <ChevronRight size={16} />
           </button>
         ))}
-      </section>
+      </div>
+    </div>
+  )
+}
 
-      <section className="panel">
-        <SectionLabel>CATEGORY SNAPSHOT</SectionLabel>
-        <div className="discover-rows">
-          {categorySignals.map((item) => (
-            <div key={item.name}>
-              <span className={`category-bar ${item.color}`} />
-              <b>{item.name}</b>
-              <small>{signals.status === 'ready' ? `${categoryCounts[item.name]} in current feed` : loading ? 'Loading…' : 'Unavailable'}</small>
+function DeskView({ signalItems }) {
+  return (
+    <div className="app-view">
+      <div className="app-view-heading">
+        <span className="app-kicker">Desk</span>
+        <h1>Work in motion.</h1>
+        <p>Ideas, drafts, reviewing, and stories you have pulled in from Signal.</p>
+      </div>
+
+      {signalItems.length > 0 && (
+        <section className="desk-signal-section">
+          <h2>From Signal</h2>
+          <div className="app-panel">
+            {signalItems.map((item) => (
+              <article className="desk-row" key={item.signal_id}>
+                <div>
+                  <small>
+                    <CategoryIcon category={item.category} size={14} />
+                    Signal · {categoryLabel(item.category)}
+                  </small>
+                  <b>{item.headline}</b>
+                </div>
+                <span>Added</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="app-panel">
+        {WORK_PREVIEW.map((item) => (
+          <article className="desk-row" key={item.id}>
+            <div>
+              <small>{item.type} · {item.state}</small>
+              <b>{item.title}</b>
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel empty-panel discover-future">
-        <FolderOpen size={22} />
-        <div><SectionLabel>COLLECTIONS / FUTURE</SectionLabel><p>Saved editorial collections will live here once collection tools are connected.</p></div>
+            <span>{item.updated}</span>
+          </article>
+        ))}
       </section>
     </div>
   )
 }
 
-function NewsDesk() {
-  const stages = ['Signal', 'Developing', 'Draft', 'Ready', 'Published']
-  return <div className="page-stack"><section className="intro-block"><span className="eyebrow magenta-text">EDITORIAL PIPELINE / V1</span><h2>Move the right stories forward.</h2><p>The News Desk will be the working surface for turning signals into clear, publishable stories.</p></section><section className="workflow" aria-label="News Desk workflow">{stages.map((stage, index) => <div className={`workflow-stage${index === 0 ? ' current' : ''}`} key={stage}><div className="stage-head"><span>0{index + 1}</span><b>{stage}</b><small>{index === 0 ? '04' : '—'}</small></div><div className="stage-body">{index === 0 ? <><CircleDot size={18} /><p>Incoming signals will wait here for editorial triage.</p></> : <><SlidersHorizontal size={17} /><p>Placeholder workspace for {stage.toLowerCase()} stories.</p></>}</div></div>)}</section></div>
+function LibraryView() {
+  return (
+    <div className="app-view">
+      <div className="app-view-heading">
+        <span className="app-kicker">Library</span>
+        <h1>Your archive, without the attic dust.</h1>
+        <p>Published work, guides, reviews, explainers, collections, and reusable assets.</p>
+      </div>
+
+      <section className="library-empty app-panel">
+        <Archive size={26} />
+        <b>Library wiring comes after the Home shell.</b>
+        <span>The navigation and space are here so we can feel the OS before filling every drawer.</span>
+      </section>
+    </div>
+  )
 }
 
-function EmptyPage({ page, icon: Icon, label, copy, action }) {
-  return <div className="page-stack empty-page"><section className="intro-block"><span className="eyebrow purple-text">STUDIO MODULE / V1</span><h2>{page}</h2><p>{copy}</p></section><section className="empty-module"><div className="empty-module-icon"><Icon size={28} /></div><span className="eyebrow">{label}</span><h3>This workspace is ready for its next layer.</h3><p>Structure is in place so real {page.toLowerCase()} data can slot in later without changing the Studio shell.</p>{action && <button className="outline-button">{action} <ArrowUpRight size={14} /></button>}</section></div>
-}
+function SearchOverlay({ open, onClose, signals, onNavigate }) {
+  const [query, setQuery] = useState('')
 
-function StudioPage({ page, onOpenSignal }) {
-  if (page === 'Dashboard') return <Dashboard onOpenSignal={onOpenSignal} />
-  if (page === 'Discover') return <Discover onOpenSignal={onOpenSignal} />
-  if (page === 'News Desk') return <NewsDesk />
-  if (page === 'Create') return <EmptyPage page="Create" icon={FilePlus2} label="COMPOSER ENTRY POINT" copy="The Composer will be the place to shape signals into editorial work, with a clear path from first note to final story." action="Open Composer" />
-  const moduleData = { Sources: [Radio, 'SOURCE LIBRARY', 'A future home for feeds, publications, and the trusted inputs behind the signal field.'], Audience: [Users, 'AUDIENCE INTELLIGENCE', 'A future home for reader patterns, feedback, and the people we are making this for.'], Distribution: [BarChart3, 'PUBLICATION CONTROL', 'A future home for channels, schedules, and the final handoff to Publications.'], System: [Settings2, 'SYSTEM CONFIGURATION', 'A future home for Studio preferences, permissions, and the health of connected services.'] }
-  const [Icon, label, copy] = moduleData[page]
-  return <EmptyPage page={page} icon={Icon} label={label} copy={copy} />
-}
+  useEffect(() => {
+    if (!open) setQuery('')
+  }, [open])
 
-function routeFromPath() {
-  const match = window.location.pathname.match(/^\/studio\/signals\/([^/]+)\/?$/)
-  if (match) {
-    try { return { page: 'Signal Detail', signalId: decodeURIComponent(match[1]) } }
-    catch { return { page: 'Signal Detail', signalId: match[1] } }
+  const commands = useMemo(() => commandMatches(query), [query])
+  const results = useMemo(
+    () => searchItems(query, signals, WORK_PREVIEW),
+    [query, signals],
+  )
+
+  if (!open) return null
+
+  function handleCommand(command) {
+    onNavigate(command.action)
+    onClose()
   }
-  const slug = window.location.pathname.replace(/^\/studio\/?/, '').replace(/\/$/, '').replace(/-/g, ' ')
-  return { page: navItems.find((item) => item.label.toLowerCase() === slug.toLowerCase())?.label || 'Dashboard' }
+
+  return (
+    <div className="spotlight-layer" role="dialog" aria-modal="true" aria-label="Search Vibe">
+      <button type="button" className="spotlight-scrim" onClick={onClose} aria-label="Close search" />
+
+      <section className="spotlight">
+        <div className="spotlight-input-wrap">
+          <IconSearch size={19} strokeWidth={1.8} />
+          <input
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search Vibe or run a command"
+            autoComplete="off"
+            spellCheck="false"
+          />
+          <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>
+        </div>
+
+        {query.startsWith('/') && (
+          <div className="spotlight-section">
+            <span className="spotlight-label">Commands</span>
+            {(commands.length ? commands : COMMANDS).map((command) => (
+              <button type="button" key={command.command} onClick={() => handleCommand(command)}>
+                <Command size={16} />
+                <span><b>{command.command}</b><small>{command.label}</small></span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {query && !query.startsWith('/') && (
+          <>
+            {results.signals.length > 0 && (
+              <div className="spotlight-section">
+                <span className="spotlight-label">Signals</span>
+                {results.signals.map((signal) => (
+                  <button type="button" key={signal.signal_id} onClick={() => handleCommand({ action: 'signal' })}>
+                    <IconSignal size={17} strokeWidth={1.8} />
+                    <span><b>{signal.headline}</b><small>{categoryLabel(signal.category)}</small></span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {results.work.length > 0 && (
+              <div className="spotlight-section">
+                <span className="spotlight-label">Work</span>
+                {results.work.map((item) => (
+                  <button type="button" key={item.id} onClick={() => handleCommand({ action: 'desk' })}>
+                    <IconDesk size={17} strokeWidth={1.8} />
+                    <span><b>{item.title}</b><small>{item.type} · {item.state}</small></span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {results.signals.length === 0 && results.work.length === 0 && (
+              <div className="spotlight-empty">No matches yet.</div>
+            )}
+          </>
+        )}
+
+        <div className="spotlight-footer">
+          <span>⌘K</span>
+          <span>Type / for commands</span>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
+  if (!open) return null
+
+  const menuApps = [
+    { id: 'home', label: 'Home', Icon: IconHome },
+    { id: 'signal', label: 'Signal', Icon: IconSignal },
+    { id: 'create', label: 'Create', Icon: IconCreate },
+    { id: 'desk', label: 'Desk', Icon: IconDesk },
+    { id: 'library', label: 'Library', Icon: IconLibrary },
+  ]
+
+  function go(target) {
+    onNavigate(target)
+    onClose()
+  }
+
+  return (
+    <div className="vibe-menu-popover" role="menu" aria-label="Vibe navigation">
+      {menuApps.map(({ id, label, Icon }) => (
+        <button
+          type="button"
+          key={id}
+          className={activeApp === id ? 'is-active' : ''}
+          onClick={() => go(id)}
+          role="menuitem"
+          aria-current={activeApp === id ? 'page' : undefined}
+        >
+          <Icon size={20} strokeWidth={1.7} />
+          <span>{label}</span>
+        </button>
+      ))}
+
+      <div className="menu-separator" />
+
+      <button
+        type="button"
+        onClick={() => {
+          onSearch()
+          onClose()
+        }}
+        role="menuitem"
+      >
+        <IconSearch size={20} strokeWidth={1.8} />
+        <span>Search / Command</span>
+      </button>
+
+      <div className="vibe-menu-status">
+        <IconStatus size={19} strokeWidth={1.8} />
+        <span>Systems normal</span>
+      </div>
+
+      <form method="post" action="/studio/logout">
+        <button type="submit" role="menuitem">
+          <IconLogout size={20} strokeWidth={1.8} />
+          <span>Sign out</span>
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function readDeskSignals() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(DESK_SESSION_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
 function StudioApp() {
-  const [route, setRoute] = useState(routeFromPath)
+  const [activeApp, setActiveApp] = useState('home')
+  const [signals, setSignals] = useState({ status: 'loading', data: [] })
+  const [dashboard, setDashboard] = useState({ status: 'loading', data: null })
+  const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const contentRef = useRef(null)
+  const [selectedSignalId, setSelectedSignalId] = useState(null)
+  const [deskSignals, setDeskSignals] = useState(readDeskSignals)
+  const [refreshState, setRefreshState] = useState({
+    status: 'idle',
+    requestId: null,
+    message: null,
+  })
 
-  useEffect(() => {
-    const onPopState = () => { setRoute(routeFromPath()); setMenuOpen(false) }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
+  const loadSignalData = useCallback(async (signal) => {
+    const [signalResult, dashboardResult] = await Promise.allSettled([
+      fetchSignals(signal, 100),
+      fetchDashboard(signal),
+    ])
+
+    if (signalResult.status === 'fulfilled') {
+      setSignals({ status: 'ready', data: signalResult.value })
+    } else {
+      setSignals({ status: 'error', data: [] })
+    }
+
+    if (dashboardResult.status === 'fulfilled') {
+      setDashboard({ status: 'ready', data: dashboardResult.value })
+    } else {
+      setDashboard({ status: 'error', data: null })
+    }
   }, [])
 
   useEffect(() => {
-    contentRef.current?.focus({ preventScroll: true })
-    window.scrollTo(0, 0)
-  }, [route])
+    const controller = new AbortController()
+    loadSignalData(controller.signal)
+    return () => controller.abort()
+  }, [loadSignalData])
 
-  function navigateTo(path) {
-    if (window.location.pathname !== path) window.history.pushState({}, '', path)
-    setRoute(routeFromPath())
+  useEffect(() => {
+    sessionStorage.setItem(
+      DESK_SESSION_KEY,
+      JSON.stringify(deskSignals),
+    )
+  }, [deskSignals])
+
+  useEffect(() => {
+    if (
+      !refreshState.requestId ||
+      !['PENDING', 'CLAIMED'].includes(refreshState.status)
+    ) {
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const timer = window.setInterval(async () => {
+      try {
+        const request = await fetchRefreshRequest(
+          refreshState.requestId,
+          controller.signal,
+        )
+
+        setRefreshState((current) => ({
+          ...current,
+          status: request.status,
+          message: request.error_message,
+        }))
+
+        if (request.status === 'COMPLETE') {
+          window.clearInterval(timer)
+          await loadSignalData()
+        }
+
+        if (request.status === 'FAILED') {
+          window.clearInterval(timer)
+        }
+      } catch {
+        // Keep the request alive. A transient status read should not create
+        // a second refresh request or erase the current state.
+      }
+    }, 2000)
+
+    return () => {
+      window.clearInterval(timer)
+      controller.abort()
+    }
+  }, [
+    loadSignalData,
+    refreshState.requestId,
+    refreshState.status,
+  ])
+
+  useEffect(() => {
+    function handleKey(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearchOpen((value) => !value)
+      }
+
+      if (event.key === 'Escape') {
+        setSearchOpen(false)
+        setMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
+  function navigate(target) {
+    const next = target === 'settings' ? 'home' : target
+    setActiveApp(next)
     setMenuOpen(false)
   }
-  function navigate(page) { navigateTo(`/studio/${page.toLowerCase().replace(/ /g, '-')}`) }
-  function openSignal(signalId) { navigateTo(`/studio/signals/${encodeURIComponent(signalId)}`) }
 
-  return <div className="studio-app"><Sidebar activePage={route.page === 'Signal Detail' ? 'Dashboard' : route.page} onNavigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} /><div className="studio-main"><Header page={route.page} onMenu={() => setMenuOpen(true)} /><main className="studio-content" ref={contentRef} tabIndex={-1} aria-label={route.page}>
-    {route.page === 'Signal Detail'
-      ? <SignalDetail key={route.signalId} signalId={route.signalId} onBack={() => navigate('Dashboard')} />
-      : <StudioPage page={route.page} onOpenSignal={openSignal} />}
-  </main><footer className="studio-footer"><span>VIBE STUDIO / INTERNAL CONTROL SURFACE</span><span>PUBLIC SITE <a href="/">THEGEEK.GUIDE <ArrowUpRight size={12} /></a></span></footer></div></div>
+  async function handleManualRefresh() {
+    if (['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)) {
+      return
+    }
+
+    setRefreshState({
+      status: 'requesting',
+      requestId: null,
+      message: null,
+    })
+
+    try {
+      const request = await requestManualRefresh()
+
+      setRefreshState({
+        status: request.status,
+        requestId: request.request_id,
+        message: request.error_message,
+      })
+
+      if (request.status === 'COMPLETE') {
+        await loadSignalData()
+      }
+    } catch (error) {
+      setRefreshState({
+        status: 'FAILED',
+        requestId: null,
+        message: error?.message || 'Manual refresh is unavailable.',
+      })
+    }
+  }
+
+  function sendSignalToDesk(signal) {
+    setDeskSignals((current) => {
+      if (current.some((item) => item.signal_id === signal.signal_id)) {
+        return current
+      }
+
+      return [
+        {
+          signal_id: signal.signal_id,
+          headline: signal.headline,
+          category: signal.category,
+          added_at: new Date().toISOString(),
+        },
+        ...current,
+      ]
+    })
+  }
+
+  const leaders = dashboard.data?.top_by_category ||
+    topByCategoryFromSignals(signals.data)
+  const signalStatus =
+    signals.status === 'error' && dashboard.status === 'error'
+      ? 'error'
+      : signals.status === 'loading' && dashboard.status === 'loading'
+        ? 'loading'
+        : 'ready'
+  const deskSignalIds = useMemo(
+    () => new Set(deskSignals.map((item) => item.signal_id)),
+    [deskSignals],
+  )
+  const currentApp = APP_DEFINITIONS.find((item) => item.id === activeApp)
+
+  return (
+    <div className="vibe-os">
+      <div className="os-environment" aria-hidden="true">
+        <div className="os-stars os-stars-one" />
+        <div className="os-stars os-stars-two" />
+        <div className="os-environment-shade" />
+      </div>
+
+      <header className="os-topbar">
+        <div className="vibe-menu-anchor">
+          <button
+            type="button"
+            className={`vibe-button${menuOpen ? ' is-open' : ''}`}
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-label="Open Vibe navigation"
+            aria-expanded={menuOpen}
+          >
+            <StudioMark />
+          </button>
+
+          <VibeMenu
+            open={menuOpen}
+            activeApp={activeApp}
+            onClose={() => setMenuOpen(false)}
+            onNavigate={navigate}
+            onSearch={() => setSearchOpen(true)}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="site-title-button"
+          onClick={() => navigate('home')}
+          aria-label="Go to Home"
+        >
+          THE GEEK GUIDE
+        </button>
+
+        <button
+          type="button"
+          className="search-button"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search Vibe"
+        >
+          <IconSearch size={21} strokeWidth={1.8} />
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
+      </header>
+
+      <main className="os-content">
+        {activeApp === 'home' && (
+          <HomeView
+            leaders={leaders}
+            signalStatus={signalStatus}
+            onOpen={navigate}
+            onPreview={setSelectedSignalId}
+          />
+        )}
+
+        {activeApp === 'signal' && (
+          <SignalView
+            signals={signals.data}
+            status={signals.status}
+            dashboard={dashboard.data}
+            refreshState={refreshState}
+            onRefresh={handleManualRefresh}
+            onPreview={setSelectedSignalId}
+          />
+        )}
+
+        {activeApp === 'create' && <CreateView />}
+        {activeApp === 'desk' && <DeskView signalItems={deskSignals} />}
+        {activeApp === 'library' && <LibraryView />}
+      </main>
+
+      {currentApp && activeApp !== 'home' && (
+        <span className="current-app-announcement" aria-live="polite">
+          {currentApp.label}
+        </span>
+      )}
+
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        signals={signals.data}
+        onNavigate={navigate}
+      />
+
+      <StoryPreview
+        signalId={selectedSignalId}
+        onClose={() => setSelectedSignalId(null)}
+        onSendToDesk={sendSignalToDesk}
+        onCategoryCorrected={() => loadSignalData()}
+        deskSignalIds={deskSignalIds}
+      />
+    </div>
+  )
 }
 
 export default StudioApp

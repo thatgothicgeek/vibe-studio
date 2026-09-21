@@ -1,23 +1,18 @@
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-function loadHubToken() {
-  const environmentToken = process.env.VIBE_HUB_SYNC_TOKEN?.trim()
-
-  if (environmentToken) return environmentToken
-
+function readTokenFile(relativePath, key) {
   try {
-    const secretFile = join(
-      homedir(),
-      '.config/vibe/hub-sync.env',
+    const content = readFileSync(
+      join(homedir(), relativePath),
+      'utf8',
     )
-
-    const content = readFileSync(secretFile, 'utf8')
     const match = content.match(
-      /^VIBE_HUB_SYNC_TOKEN=(.+)$/m,
+      new RegExp(`^${key}=(.+)$`, 'm'),
     )
 
     return match?.[1]?.trim() || ''
@@ -26,8 +21,34 @@ function loadHubToken() {
   }
 }
 
+function loadHubToken() {
+  return (
+    process.env.STUDIO_HUB_READ_TOKEN?.trim() ||
+    process.env.VIBE_HUB_SYNC_TOKEN?.trim() ||
+    readTokenFile(
+      '.config/vibe/studio-read.env',
+      'STUDIO_READ_TOKEN',
+    ) ||
+    readTokenFile(
+      '.config/vibe/hub-sync.env',
+      'VIBE_HUB_SYNC_TOKEN',
+    )
+  )
+}
+
+function loadActionToken() {
+  return (
+    process.env.STUDIO_HUB_ACTION_TOKEN?.trim() ||
+    readTokenFile(
+      '.config/vibe/studio-action.env',
+      'STUDIO_ACTION_TOKEN',
+    )
+  )
+}
+
 export default defineConfig(({ command }) => {
-  const hubToken = loadHubToken()
+  const hubToken = command === 'serve' ? loadHubToken() : ''
+  const actionToken = command === 'serve' ? loadActionToken() : ''
 
   if (command === 'serve' && !hubToken) {
     throw new Error(
@@ -38,16 +59,32 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [react()],
     server: {
+      allowedHosts: [
+        'jamess-mac-mini.taila7026b.ts.net',
+      ],
       proxy: {
         '/api': {
           target: 'https://hub.thegeek.guide',
           changeOrigin: true,
           secure: true,
-          headers: hubToken
-            ? {
-                Authorization: `Bearer ${hubToken}`,
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              const isStudioAction =
+                req.method === 'POST' &&
+                req.url?.startsWith('/api/actions/')
+
+              const token = isStudioAction
+                ? actionToken
+                : hubToken
+
+              if (token) {
+                proxyReq.setHeader(
+                  'Authorization',
+                  `Bearer ${token}`,
+                )
               }
-            : {},
+            })
+          },
         },
       },
     },

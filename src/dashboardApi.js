@@ -63,11 +63,23 @@ export function parseDashboard(data) {
     }
   }
 
+  const lastRefreshAt = optionalText(data.last_refresh_at)
+  const lastRefreshTrigger = optionalText(data.last_refresh_trigger)
+
+  if (
+    lastRefreshTrigger &&
+    !['manual', 'scheduled'].includes(lastRefreshTrigger)
+  ) {
+    throw new Error('Invalid refresh trigger')
+  }
+
   return {
     active_signal_count: data.active_signal_count,
     category_signal_counts: counts,
     top_signal: topSignal,
     top_by_category: topByCategory,
+    last_refresh_at: lastRefreshAt,
+    last_refresh_trigger: lastRefreshTrigger,
   }
 }
 
@@ -93,10 +105,10 @@ export function parseSignal(data) {
     lifecycle_state: optionalText(data.lifecycle_state),
     cluster_state: optionalText(data.cluster_state),
     updated_at: optionalText(data.updated_at),
-    lead: Object.fromEntries(['title', 'source_name', 'effective_at', 'timestamp_basis', 'warning']
+    lead: Object.fromEntries(['title', 'source_name', 'effective_at', 'timestamp_basis', 'warning', 'excerpt']
       .map((key) => [key, optionalText(lead[key])])),
     articles: Array.isArray(data.articles) ? data.articles.filter(isObject).map((article) =>
-      Object.fromEntries(['item_id', 'title', 'url', 'source_name', 'published_at', 'discovered_at', 'item_role']
+      Object.fromEntries(['item_id', 'title', 'url', 'source_name', 'published_at', 'discovered_at', 'excerpt', 'item_role']
         .map((key) => [key, optionalText(article[key])])) ) : [],
   }
 }
@@ -104,6 +116,29 @@ export function parseSignal(data) {
 export function parseSignals(data) {
   if (!Array.isArray(data)) throw new Error('Invalid signals response')
   return data.map((signal) => parseSignal(signal))
+}
+
+export function parseRefreshRequest(data) {
+  if (!isObject(data) || !optionalText(data.request_id) || !optionalText(data.status)) {
+    throw new Error('Invalid refresh response')
+  }
+
+  if (!['PENDING', 'CLAIMED', 'COMPLETE', 'FAILED'].includes(data.status)) {
+    throw new Error('Invalid refresh status')
+  }
+
+  return {
+    request_id: data.request_id,
+    status: data.status,
+    requested_at: optionalText(data.requested_at),
+    claimed_at: optionalText(data.claimed_at),
+    completed_at: optionalText(data.completed_at),
+    error_message: optionalText(data.error_message),
+  }
+}
+
+export async function fetchDashboard(signal) {
+  return fetchDashboardResource('/api/dashboard', signal, parseDashboard)
 }
 
 export async function fetchSignals(signal, limit = 24) {
@@ -115,6 +150,81 @@ export async function fetchSignal(signalId, signal) {
   const data = await fetchDashboardResource(`/api/signals/${encodeURIComponent(signalId)}`, signal, parseSignal)
   if (data.signal_id !== signalId) throw new Error('Signal response does not match request')
   return data
+}
+
+export async function correctSignalCategory(
+  signalId,
+  category,
+  signal,
+) {
+  const response = await fetch(
+    `/api/actions/signals/${encodeURIComponent(signalId)}/category`,
+    {
+      method: 'POST',
+      signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ category }),
+      cache: 'no-store',
+      redirect: 'error',
+    },
+  )
+
+  if (
+    !response.ok ||
+    !response.headers
+      .get('content-type')
+      ?.includes('application/json')
+  ) {
+    throw new Error('Category correction unavailable')
+  }
+
+  const payload = await response.json()
+  const correction = payload?.correction
+
+  if (
+    !isObject(correction) ||
+    optionalText(correction.signal_id) !== signalId ||
+    optionalText(correction.corrected_category) !== category
+  ) {
+    throw new Error('Invalid category correction response')
+  }
+
+  return {
+    signal_id: correction.signal_id,
+    original_category: optionalText(correction.original_category),
+    corrected_category: correction.corrected_category,
+    status: optionalText(correction.status),
+  }
+}
+
+export async function requestManualRefresh(signal) {
+  const response = await fetch('/api/actions/refresh', {
+    method: 'POST',
+    signal,
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    redirect: 'error',
+  })
+
+  if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
+    throw new Error('Manual refresh unavailable')
+  }
+
+  const payload = await response.json()
+  const request = payload?.request
+
+  return parseRefreshRequest(request)
+}
+
+export async function fetchRefreshRequest(requestId, signal) {
+  return fetchDashboardResource(
+    `/api/actions/refresh/${encodeURIComponent(requestId)}`,
+    signal,
+    parseRefreshRequest,
+  )
 }
 
 export async function fetchDashboardResource(url, signal, parse) {
