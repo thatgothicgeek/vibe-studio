@@ -333,10 +333,6 @@ function DigestCard({ signal, variant = 'standard', onPreview }) {
       className={`digest-card digest-card-${variant}`}
       onClick={() => onPreview(signal.signal_id)}
     >
-      <span className="digest-card-icon" aria-label={categoryLabel(signal.category)}>
-        <CategoryIcon category={signal.category} size={variant === 'hero' ? 26 : 20} />
-      </span>
-
       <span className="digest-card-copy">
         <b>{signal.headline}</b>
         <small>
@@ -524,25 +520,29 @@ function StoryPreview({
   useEffect(() => {
     if (!signalId) return undefined
 
+    const root = document.documentElement
     const body = document.body
     const scrollY = window.scrollY
     const previous = {
-      position: body.style.position,
-      top: body.style.top,
-      width: body.style.width,
-      overflow: body.style.overflow,
+      rootOverflow: root.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
     }
 
+    root.style.overflow = 'hidden'
     body.style.position = 'fixed'
     body.style.top = `-${scrollY}px`
     body.style.width = '100%'
     body.style.overflow = 'hidden'
 
     return () => {
-      body.style.position = previous.position
-      body.style.top = previous.top
-      body.style.width = previous.width
-      body.style.overflow = previous.overflow
+      root.style.overflow = previous.rootOverflow
+      body.style.position = previous.bodyPosition
+      body.style.top = previous.bodyTop
+      body.style.width = previous.bodyWidth
+      body.style.overflow = previous.bodyOverflow
       window.scrollTo(0, scrollY)
     }
   }, [signalId])
@@ -622,18 +622,18 @@ function StoryPreview({
           </button>
         </header>
 
-        {resource.status === 'loading' && (
-          <div className="story-preview-state">Loading story preview…</div>
-        )}
+        <div className="story-preview-scroll">
+          {resource.status === 'loading' && (
+            <div className="story-preview-state">Loading story preview…</div>
+          )}
 
-        {resource.status === 'error' && (
-          <div className="story-preview-state" role="alert">
-            This story could not be loaded right now.
-          </div>
-        )}
+          {resource.status === 'error' && (
+            <div className="story-preview-state" role="alert">
+              This story could not be loaded right now.
+            </div>
+          )}
 
-        {story && (
-          <>
+          {story && (
             <div className="story-preview-copy">
               <h2>{story.headline}</h2>
               <p className="story-preview-source">
@@ -697,54 +697,56 @@ function StoryPreview({
                 </p>
               )}
             </div>
+          )}
+        </div>
 
-            <footer className="story-preview-actions">
-              <button
-                type="button"
-                className="story-action"
-                onClick={() => {
-                  setPendingCategory(normalizeCategory(story.category))
-                  setEditingCategory((value) => !value)
-                }}
+        {story && (
+          <footer className="story-preview-actions">
+            <button
+              type="button"
+              className="story-action"
+              onClick={() => {
+                setPendingCategory(normalizeCategory(story.category))
+                setEditingCategory((value) => !value)
+              }}
+            >
+              <IconEdit size={19} />
+              Edit category
+            </button>
+
+            <button
+              type="button"
+              className="story-action compass-action"
+              disabled
+              title="Compass processing will be enabled later"
+            >
+              <IconCompassProcess size={19} />
+              Compass
+              <small>Soon</small>
+            </button>
+
+            <button
+              type="button"
+              className="story-action desk-action"
+              onClick={() => onSendToDesk(story)}
+              disabled={inDesk}
+            >
+              <IconSend size={19} />
+              {inDesk ? 'In Desk' : 'Send to Desk'}
+            </button>
+
+            {sourceUrl && (
+              <a
+                className="story-action source-action"
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <IconEdit size={19} />
-                Edit category
-              </button>
-
-              <button
-                type="button"
-                className="story-action compass-action"
-                disabled
-                title="Compass processing will be enabled later"
-              >
-                <IconCompassProcess size={19} />
-                Compass
-                <small>Soon</small>
-              </button>
-
-              <button
-                type="button"
-                className="story-action desk-action"
-                onClick={() => onSendToDesk(story)}
-                disabled={inDesk}
-              >
-                <IconSend size={19} />
-                {inDesk ? 'In Desk' : 'Send to Desk'}
-              </button>
-
-              {sourceUrl && (
-                <a
-                  className="story-action source-action"
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <IconExternalLink size={19} />
-                  Read source
-                </a>
-              )}
-            </footer>
-          </>
+                <IconExternalLink size={19} />
+                Read source
+              </a>
+            )}
+          </footer>
         )}
       </article>
     </div>
