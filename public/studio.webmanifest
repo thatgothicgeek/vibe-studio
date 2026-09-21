@@ -1,0 +1,19 @@
+{
+  "name": "Vibe Studio",
+  "short_name": "Vibe",
+  "start_url": "/studio",
+  "scope": "/studio",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#080912",
+  "theme_color": "#080912",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/studio-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
