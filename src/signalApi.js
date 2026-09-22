@@ -9,6 +9,8 @@ const localNative =
 export const nativeSignalManagementAvailable =
   localNative
 
+export const nativeSignalRefreshAvailable = true
+
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
     cache: 'no-store',
@@ -151,25 +153,83 @@ export async function getNativeStories({
 }
 
 export async function refreshNativeSignal(signal) {
-  const data = await localNativeRequest(
-    '/signal/refresh/',
+  if (localNative) {
+    const data = await localNativeRequest(
+      '/signal/refresh/',
+      {
+        method: 'POST',
+        signal,
+      },
+    )
+
+    if (
+      !isObject(data) ||
+      !['ready', 'warning'].includes(data.status) ||
+      !isObject(data.totals)
+    ) {
+      throw new Error(
+        'Invalid Signal refresh response',
+      )
+    }
+
+    return data
+  }
+
+  const data = await requestJson(
+    '/api/actions/native-signal',
     {
       method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action_type: 'refresh_all',
+        payload: {},
+      }),
+    },
+  )
+
+  if (
+    !isObject(data) ||
+    data.status !== 'ok' ||
+    !isObject(data.action) ||
+    typeof data.action.request_id !== 'string'
+  ) {
+    throw new Error(
+      'Invalid Native Signal action response',
+    )
+  }
+
+  return {
+    queued: true,
+    request_id: data.action.request_id,
+    status: data.action.status,
+  }
+}
+
+export async function getNativeSignalAction(
+  requestId,
+  signal,
+) {
+  const data = await requestJson(
+    `/api/actions/native-signal/${encodeURIComponent(requestId)}`,
+    {
       signal,
     },
   )
 
   if (
     !isObject(data) ||
-    !['ready', 'warning'].includes(data.status) ||
-    !isObject(data.totals)
+    data.status !== 'ok' ||
+    !isObject(data.action)
   ) {
     throw new Error(
-      'Invalid Signal refresh response',
+      'Invalid Native Signal action status response',
     )
   }
 
-  return data
+  return data.action
 }
 
 export async function createNativeSource(source) {
