@@ -41,15 +41,16 @@ import {
 import {
   correctSignalCategory,
   fetchDashboard,
-  fetchRefreshRequest,
   fetchSignal,
   fetchSignals,
 } from './dashboardApi'
 import {
   createNativeSource,
+  getNativeSignalAction,
   getNativeSignalStatus,
   getNativeSources,
   nativeSignalManagementAvailable,
+  nativeSignalRefreshAvailable,
   refreshNativeSignal,
   refreshNativeSource,
   updateNativeSource,
@@ -2061,23 +2062,23 @@ function StudioApp() {
     const controller = new AbortController()
     const timer = window.setInterval(async () => {
       try {
-        const request = await fetchRefreshRequest(
+        const action = await getNativeSignalAction(
           refreshState.requestId,
           controller.signal,
         )
 
         setRefreshState((current) => ({
           ...current,
-          status: request.status,
-          message: request.error_message,
+          status: action.status,
+          message: action.error_message,
         }))
 
-        if (request.status === 'COMPLETE') {
+        if (action.status === 'COMPLETE') {
           window.clearInterval(timer)
           await loadSignalData()
         }
 
-        if (request.status === 'FAILED') {
+        if (action.status === 'FAILED') {
           window.clearInterval(timer)
         }
       } catch {
@@ -2150,7 +2151,16 @@ function StudioApp() {
     })
 
     try {
-      await refreshNativeSignal()
+      const result = await refreshNativeSignal()
+
+      if (result?.queued) {
+        setRefreshState({
+          status: result.status || 'PENDING',
+          requestId: result.request_id,
+          message: null,
+        })
+        return
+      }
 
       setRefreshState({
         status: 'COMPLETE',
@@ -2279,7 +2289,7 @@ function StudioApp() {
           onRefresh={handleManualRefresh}
           refreshState={refreshState}
           refreshAvailable={
-            nativeSignalManagementAvailable
+            nativeSignalRefreshAvailable
           }
         />
       )}
