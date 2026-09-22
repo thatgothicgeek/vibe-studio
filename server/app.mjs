@@ -25,7 +25,8 @@ const readRoute = path =>
     '/api/native-signal/stories',
   ].includes(path) ||
   /^\/api\/signals\/[^/]+$/.test(path) ||
-  /^\/api\/actions\/refresh\/[^/]+$/.test(path)
+  /^\/api\/actions\/refresh\/[^/]+$/.test(path) ||
+  /^\/api\/actions\/native-signal\/[^/]+$/.test(path)
 
 async function readPassword(request) {
   const contentType = request.headers['content-type'] || ''
@@ -217,6 +218,7 @@ export function createStudioServer({
 
       const actionRoute =
         path === '/api/actions/refresh' ||
+        path === '/api/actions/native-signal' ||
         /^\/api\/actions\/signals\/[^/]+\/category$/.test(path)
 
       if (
