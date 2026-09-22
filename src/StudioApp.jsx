@@ -2,12 +2,15 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import {
   Archive,
+  ChevronDown,
   ChevronRight,
   Command,
+  SlidersHorizontal,
   Sparkles,
   X,
 } from 'lucide-react'
@@ -41,8 +44,15 @@ import {
   fetchRefreshRequest,
   fetchSignal,
   fetchSignals,
-  requestManualRefresh,
 } from './dashboardApi'
+import {
+  createNativeSource,
+  getNativeSignalStatus,
+  getNativeSources,
+  refreshNativeSignal,
+  refreshNativeSource,
+  updateNativeSource,
+} from './signalApi'
 import {
   APP_DEFINITIONS,
   COMMANDS,
@@ -54,6 +64,13 @@ import {
 
 const CATEGORY_ORDER = ['TV', 'Movies', 'Comics', 'Games', 'Tech']
 const DESK_SESSION_KEY = 'vibe-studio-desk-signals-v1'
+
+const DEFAULT_SIGNAL_FILTERS = {
+  category: 'All',
+  published: 'any',
+  source: 'All',
+  sort: 'rank',
+}
 
 const WORK_PREVIEW = [
   {
@@ -129,6 +146,104 @@ function formatRefreshTime(value) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
+}
+
+
+function signalSourceName(signal) {
+  return (
+    signal?.lead?.source_name ||
+    signal?.source_name ||
+    ''
+  )
+}
+
+function signalTimeValue(signal) {
+  const candidates = [
+    signal?.lead?.effective_at,
+    signal?.updated_at,
+    signal?.articles?.[0]?.published_at,
+    signal?.articles?.[0]?.discovered_at,
+  ]
+
+  for (const value of candidates) {
+    if (!value) continue
+
+    const time = new Date(value).getTime()
+
+    if (!Number.isNaN(time)) {
+      return time
+    }
+  }
+
+  return null
+}
+
+function filterSignalData(signals, filters) {
+  const now = Date.now()
+
+  const timeWindows = {
+    hour: 60 * 60 * 1000,
+    today: 24 * 60 * 60 * 1000,
+    week: 7 * 24 * 60 * 60 * 1000,
+  }
+
+  const filtered = signals.filter((signal) => {
+    if (
+      filters.category !== 'All' &&
+      normalizeCategory(signal.category) !== filters.category
+    ) {
+      return false
+    }
+
+    if (
+      filters.source !== 'All' &&
+      signalSourceName(signal) !== filters.source
+    ) {
+      return false
+    }
+
+    if (filters.published !== 'any') {
+      const timestamp = signalTimeValue(signal)
+
+      if (!timestamp) return false
+
+      const windowSize = timeWindows[filters.published]
+
+      if (windowSize && now - timestamp > windowSize) {
+        return false
+      }
+    }
+
+    return true
+  })
+
+  const sorted = [...filtered]
+
+  if (filters.sort === 'newest') {
+    sorted.sort(
+      (a, b) =>
+        (signalTimeValue(b) ?? 0) -
+        (signalTimeValue(a) ?? 0),
+    )
+  }
+
+  if (filters.sort === 'oldest') {
+    sorted.sort(
+      (a, b) =>
+        (signalTimeValue(a) ?? 0) -
+        (signalTimeValue(b) ?? 0),
+    )
+  }
+
+  if (filters.sort === 'source') {
+    sorted.sort((a, b) =>
+      signalSourceName(a).localeCompare(
+        signalSourceName(b),
+      ),
+    )
+  }
+
+  return sorted
 }
 
 function topByCategoryFromSignals(signals) {
@@ -280,7 +395,38 @@ function HomeView({
   )
 }
 
-function RefreshStatus({ dashboard, refreshState }) {
+function useNativeSignalStatus(refreshKey) {
+  const [state, setState] = useState({
+    status: 'loading',
+    data: null,
+  })
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    getNativeSignalStatus(controller.signal)
+      .then((data) => {
+        setState({
+          status: 'ready',
+          data,
+        })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setState({
+            status: 'error',
+            data: null,
+          })
+        }
+      })
+
+    return () => controller.abort()
+  }, [refreshKey])
+
+  return state
+}
+
+function RefreshStatus({ dashboard, refreshState, nativeStatus }) {
   const label = refreshState.status === 'PENDING'
     ? 'Refresh queued'
     : refreshState.status === 'CLAIMED'
@@ -289,12 +435,30 @@ function RefreshStatus({ dashboard, refreshState }) {
         ? 'Refresh failed'
         : null
 
+  const native = nativeStatus?.data
+  const nativeReady = nativeStatus?.status === 'ready'
+
   return (
     <div className="signal-refresh-status">
       <span>
         <IconClock size={16} strokeWidth={1.8} />
-        Last refresh: {formatRefreshTime(dashboard?.last_refresh_at)}
+        Last refresh: {formatRefreshTime(
+          native?.last_refresh ?? dashboard?.last_refresh_at
+        )}
       </span>
+
+      {nativeReady && (
+        <span>
+          {native.sources.total} source{native.sources.total === 1 ? '' : 's'}
+          {' · '}
+          {native.stories.total} stories
+        </span>
+      )}
+
+      {nativeReady && native.sources.errors > 0 && (
+        <em>{native.sources.errors} source error{native.sources.errors === 1 ? '' : 's'}</em>
+      )}
+
       {label && <em>{label}</em>}
     </div>
   )
@@ -386,15 +550,377 @@ function DigestSection({ category, stories, onPreview, expanded = false }) {
   )
 }
 
+
+function SignalRibbon({
+  section,
+  onSectionChange,
+  filters,
+  onFiltersChange,
+  sourceOptions,
+  onRefresh,
+  refreshState,
+}) {
+  const [navOpen, setNavOpen] = useState(false)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const ribbonRef = useRef(null)
+
+  const refreshing = [
+    'requesting',
+    'PENDING',
+    'CLAIMED',
+  ].includes(refreshState.status)
+
+  const sectionLabels = {
+    digest: 'Digest',
+    discover: 'Discover',
+    search: 'Search',
+    sources: 'Sources',
+  }
+
+  const activeFilterCount = [
+    filters.category !== 'All',
+    filters.published !== 'any',
+    filters.source !== 'All',
+    filters.sort !== 'rank',
+  ].filter(Boolean).length
+
+  useEffect(() => {
+    function handlePointer(event) {
+      if (
+        ribbonRef.current &&
+        !ribbonRef.current.contains(event.target)
+      ) {
+        setNavOpen(false)
+        setFilterOpen(false)
+      }
+    }
+
+    function handleKey(event) {
+      if (event.key === 'Escape') {
+        setNavOpen(false)
+        setFilterOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointer)
+    window.addEventListener('keydown', handleKey)
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        handlePointer,
+      )
+      window.removeEventListener('keydown', handleKey)
+    }
+  }, [])
+
+  function chooseSection(next) {
+    onSectionChange(next)
+    setNavOpen(false)
+  }
+
+  function setFilter(name, value) {
+    onFiltersChange((current) => ({
+      ...current,
+      [name]: value,
+    }))
+  }
+
+  return (
+    <div
+      className="app-ribbon signal-app-ribbon"
+      ref={ribbonRef}
+    >
+      <div className="ribbon-left">
+        <div className="ribbon-menu-anchor">
+          <button
+            type="button"
+            className={`ribbon-nav-button${
+              navOpen ? ' is-open' : ''
+            }`}
+            onClick={() => {
+              setNavOpen((value) => !value)
+              setFilterOpen(false)
+            }}
+            aria-expanded={navOpen}
+            aria-haspopup="menu"
+          >
+            <IconSignal size={17} strokeWidth={1.8} />
+            <span>{sectionLabels[section]}</span>
+            <ChevronDown
+              size={15}
+              className={navOpen ? 'is-open' : ''}
+            />
+          </button>
+
+          {navOpen && (
+            <div
+              className="ribbon-dropdown ribbon-subnav-dropdown"
+              role="menu"
+            >
+              <button
+                type="button"
+                className={
+                  section === 'digest' ? 'is-active' : ''
+                }
+                onClick={() => chooseSection('digest')}
+                role="menuitem"
+              >
+                <span>Digest</span>
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="is-coming-soon"
+                role="menuitem"
+              >
+                <span>Discover</span>
+                <small>Soon</small>
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="is-coming-soon"
+                role="menuitem"
+              >
+                <span>Search</span>
+                <small>Soon</small>
+              </button>
+
+              <button
+                type="button"
+                className={
+                  section === 'sources' ? 'is-active' : ''
+                }
+                onClick={() => chooseSection('sources')}
+                role="menuitem"
+              >
+                <span>Sources</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="ribbon-right">
+        {section === 'digest' && (
+          <div className="ribbon-menu-anchor ribbon-filter-anchor">
+            <button
+              type="button"
+              className={`ribbon-tool-button${
+                filterOpen ? ' is-open' : ''
+              }`}
+              onClick={() => {
+                setFilterOpen((value) => !value)
+                setNavOpen(false)
+              }}
+              aria-label="Filter and sort Signal"
+              aria-expanded={filterOpen}
+              aria-haspopup="menu"
+              title="Filter and sort"
+            >
+              <SlidersHorizontal
+                size={18}
+                strokeWidth={1.8}
+              />
+              <span className="ribbon-tool-label">
+                Filter
+              </span>
+
+              {activeFilterCount > 0 && (
+                <b className="ribbon-filter-count">
+                  {activeFilterCount}
+                </b>
+              )}
+            </button>
+
+            {filterOpen && (
+              <div
+                className="ribbon-dropdown ribbon-filter-dropdown"
+                role="dialog"
+                aria-label="Signal filters"
+              >
+                <div className="ribbon-filter-heading">
+                  <div>
+                    <span className="app-kicker">
+                      Signal
+                    </span>
+                    <b>Filter & sort</b>
+                  </div>
+
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      className="ribbon-clear-button"
+                      onClick={() =>
+                        onFiltersChange({
+                          ...DEFAULT_SIGNAL_FILTERS,
+                        })
+                      }
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <label>
+                  <span>Category</span>
+                  <select
+                    value={filters.category}
+                    onChange={(event) =>
+                      setFilter(
+                        'category',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="All">
+                      All categories
+                    </option>
+                    {CATEGORY_ORDER.map((category) => (
+                      <option
+                        value={category}
+                        key={category}
+                      >
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>Published</span>
+                  <select
+                    value={filters.published}
+                    onChange={(event) =>
+                      setFilter(
+                        'published',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="any">Any time</option>
+                    <option value="hour">
+                      Last hour
+                    </option>
+                    <option value="today">
+                      Last 24 hours
+                    </option>
+                    <option value="week">
+                      Last 7 days
+                    </option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Source</span>
+                  <select
+                    value={filters.source}
+                    onChange={(event) =>
+                      setFilter(
+                        'source',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="All">
+                      All sources
+                    </option>
+                    {sourceOptions.map((source) => (
+                      <option value={source} key={source}>
+                        {source}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>Sort by</span>
+                  <select
+                    value={filters.sort}
+                    onChange={(event) =>
+                      setFilter(
+                        'sort',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="rank">
+                      Signal rank
+                    </option>
+                    <option value="newest">
+                      Newest
+                    </option>
+                    <option value="oldest">
+                      Oldest
+                    </option>
+                    <option value="source">
+                      Source
+                    </option>
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="ribbon-icon-button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          aria-label="Refresh Signal"
+          title="Refresh Signal"
+        >
+          <IconRefresh
+            size={18}
+            strokeWidth={1.8}
+            className={refreshing ? 'is-spinning' : undefined}
+          />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SignalWorkspace({
+  section,
+  signals,
+  status,
+  dashboard,
+  refreshState,
+  filters,
+  onPreview,
+}) {
+  return (
+    <div className="signal-workspace">
+      {section === 'digest' && (
+        <SignalView
+          signals={signals}
+          status={status}
+          dashboard={dashboard}
+          refreshState={refreshState}
+          category={filters.category}
+          onPreview={onPreview}
+        />
+      )}
+
+      {section === 'sources' && <SourcesView />}
+    </div>
+  )
+}
+
 function SignalView({
   signals,
   status,
   dashboard,
   refreshState,
-  onRefresh,
+  category,
   onPreview,
 }) {
-  const [category, setCategory] = useState('All')
+  const nativeStatus = useNativeSignalStatus(refreshState.status)
 
   const grouped = useMemo(() => {
     const next = Object.fromEntries(
@@ -411,7 +937,6 @@ function SignalView({
     return next
   }, [signals])
 
-  const refreshing = ['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)
   const visibleCategories = category === 'All'
     ? CATEGORY_ORDER
     : [category]
@@ -426,20 +951,11 @@ function SignalView({
         </div>
 
         <div className="signal-refresh-block">
-          <RefreshStatus dashboard={dashboard} refreshState={refreshState} />
-          <button
-            type="button"
-            className="signal-refresh-button"
-            onClick={onRefresh}
-            disabled={refreshing}
-          >
-            <IconRefresh
-              size={18}
-              strokeWidth={1.8}
-              className={refreshing ? 'is-spinning' : undefined}
-            />
-            {refreshing ? 'Refreshing' : 'Refresh Signal'}
-          </button>
+          <RefreshStatus
+            dashboard={dashboard}
+            refreshState={refreshState}
+            nativeStatus={nativeStatus}
+          />
         </div>
       </div>
 
@@ -448,8 +964,6 @@ function SignalView({
           {refreshState.message || 'Manual refresh is unavailable right now.'}
         </p>
       )}
-
-      <CategoryFilter value={category} onChange={setCategory} />
 
       <div className="signal-magazine" aria-live="polite">
         {status === 'loading' && <p className="widget-state">Loading Signals…</p>}
@@ -753,6 +1267,447 @@ function StoryPreview({
   )
 }
 
+
+function sourceCategoryLabel(category) {
+  const normalized = String(category ?? '').trim().toLowerCase()
+
+  if (normalized === 'technology' || normalized === 'tech') return 'Tech'
+  if (normalized === 'tv' || normalized === 'television') return 'TV'
+  if (normalized === 'movies' || normalized === 'movie') return 'Movies'
+  if (normalized === 'comics' || normalized === 'comic') return 'Comics'
+  if (normalized === 'games' || normalized === 'gaming') return 'Games'
+
+  return category || 'Uncategorized'
+}
+
+const EMPTY_SOURCE_FORM = {
+  name: '',
+  feed_url: '',
+  site_url: '',
+  category: 'technology',
+  poll_interval: 30,
+  enabled: true,
+}
+
+function SourcesView() {
+  const [sources, setSources] = useState({
+    status: 'loading',
+    data: [],
+    message: null,
+  })
+  const [query, setQuery] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [form, setForm] = useState(EMPTY_SOURCE_FORM)
+  const [saving, setSaving] = useState(false)
+  const [refreshingId, setRefreshingId] = useState(null)
+
+  const loadSources = useCallback(async (signal) => {
+    try {
+      const result = await getNativeSources(signal)
+      setSources({
+        status: 'ready',
+        data: result.sources,
+        message: null,
+      })
+    } catch (error) {
+      if (signal?.aborted) return
+
+      setSources({
+        status: 'error',
+        data: [],
+        message: error?.message || 'Sources are unavailable.',
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    loadSources(controller.signal)
+    return () => controller.abort()
+  }, [loadSources])
+
+  const filteredSources = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+
+    if (!needle) return sources.data
+
+    return sources.data.filter((source) => (
+      source.name?.toLowerCase().includes(needle) ||
+      source.feed_url?.toLowerCase().includes(needle) ||
+      source.category?.toLowerCase().includes(needle)
+    ))
+  }, [query, sources.data])
+
+  const enabledCount = sources.data.filter((source) => source.enabled).length
+  const errorCount = sources.data.filter((source) => source.error).length
+
+  function openAdd() {
+    setEditingId(null)
+    setForm(EMPTY_SOURCE_FORM)
+    setFormOpen(true)
+  }
+
+  function openEdit(source) {
+    setEditingId(source.id)
+    setForm({
+      name: source.name || '',
+      feed_url: source.feed_url || '',
+      site_url: source.site_url || '',
+      category: source.category || 'technology',
+      poll_interval: source.poll_interval || 30,
+      enabled: Boolean(source.enabled),
+    })
+    setFormOpen(true)
+  }
+
+  function closeForm() {
+    if (saving) return
+    setFormOpen(false)
+    setEditingId(null)
+    setForm(EMPTY_SOURCE_FORM)
+  }
+
+  function updateField(event) {
+    const { name, value, type, checked } = event.target
+
+    setForm((current) => ({
+      ...current,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  async function saveSource(event) {
+    event.preventDefault()
+    setSaving(true)
+
+    try {
+      const payload = {
+        ...form,
+        poll_interval: Number(form.poll_interval),
+      }
+
+      if (editingId) {
+        await updateNativeSource(editingId, payload)
+      } else {
+        await createNativeSource(payload)
+      }
+
+      await loadSources()
+      closeForm()
+    } catch (error) {
+      setSources((current) => ({
+        ...current,
+        message: error?.message || 'Could not save source.',
+      }))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function toggleSource(source) {
+    try {
+      await updateNativeSource(source.id, {
+        enabled: !source.enabled,
+      })
+
+      await loadSources()
+    } catch (error) {
+      setSources((current) => ({
+        ...current,
+        message: error?.message || 'Could not update source.',
+      }))
+    }
+  }
+
+  async function refreshSource(source) {
+    if (!source.enabled || refreshingId !== null) return
+
+    setRefreshingId(source.id)
+
+    try {
+      await refreshNativeSource(source.id)
+      await loadSources()
+    } catch (error) {
+      setSources((current) => ({
+        ...current,
+        message: error?.message || 'Could not refresh source.',
+      }))
+
+      await loadSources()
+    } finally {
+      setRefreshingId(null)
+    }
+  }
+
+  return (
+    <div className="app-view sources-view">
+      <div className="sources-heading">
+        <div className="app-view-heading">
+          <span className="app-kicker">Signal</span>
+          <h1>Sources</h1>
+          <p>Manage where Signal listens and keep an eye on feed health.</p>
+        </div>
+
+        <button
+          type="button"
+          className="sources-add-button"
+          onClick={openAdd}
+        >
+          + Add Source
+        </button>
+      </div>
+
+      <div className="sources-summary">
+        <span><b>{sources.data.length}</b> sources</span>
+        <span><b>{enabledCount}</b> active</span>
+        <span className={errorCount ? 'has-errors' : ''}>
+          <b>{errorCount}</b> errors
+        </span>
+      </div>
+
+      <div className="sources-search">
+        <IconSearch size={18} strokeWidth={1.8} />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search sources"
+          aria-label="Search sources"
+        />
+      </div>
+
+      {sources.message && (
+        <p className="sources-message" role="status">
+          {sources.message}
+        </p>
+      )}
+
+      {sources.status === 'loading' && (
+        <section className="app-panel sources-empty">
+          Loading sources…
+        </section>
+      )}
+
+      {sources.status !== 'loading' && filteredSources.length === 0 && (
+        <section className="app-panel sources-empty">
+          No sources match this search.
+        </section>
+      )}
+
+      <div className="sources-list">
+        {filteredSources.map((source) => (
+          <article
+            className={`source-card${source.error ? ' has-error' : ''}`}
+            key={source.id}
+          >
+            <div className="source-card-main">
+              <div className="source-card-title">
+                <div>
+                  <h2>{source.name}</h2>
+                  <span>{sourceCategoryLabel(source.category)}</span>
+                </div>
+
+                <span
+                  className={`source-health ${
+                    source.error
+                      ? 'is-error'
+                      : source.enabled
+                        ? 'is-active'
+                        : 'is-disabled'
+                  }`}
+                >
+                  {source.error
+                    ? 'Error'
+                    : source.enabled
+                      ? 'Active'
+                      : 'Disabled'}
+                </span>
+              </div>
+
+              <p className="source-feed-url">{source.feed_url}</p>
+
+              <div className="source-card-meta">
+                <span>{source.story_count} stories</span>
+                <span>Every {source.poll_interval} min</span>
+                <span>
+                  Last success: {formatRefreshTime(source.last_success_at)}
+                </span>
+              </div>
+
+              {source.error && (
+                <p className="source-error-message">
+                  {source.error}
+                </p>
+              )}
+            </div>
+
+            <div className="source-card-actions">
+              <button
+                type="button"
+                onClick={() => refreshSource(source)}
+                disabled={!source.enabled || refreshingId !== null}
+              >
+                <IconRefresh
+                  size={17}
+                  className={
+                    refreshingId === source.id
+                      ? 'is-spinning'
+                      : undefined
+                  }
+                />
+                {refreshingId === source.id ? 'Refreshing' : 'Refresh'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openEdit(source)}
+              >
+                <IconEdit size={17} />
+                Edit
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleSource(source)}
+              >
+                {source.enabled ? 'Disable' : 'Enable'}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {formOpen && (
+        <div className="source-editor-layer">
+          <button
+            type="button"
+            className="source-editor-scrim"
+            onClick={closeForm}
+            aria-label="Close source editor"
+          />
+
+          <form className="source-editor" onSubmit={saveSource}>
+            <div className="source-editor-heading">
+              <div>
+                <span className="app-kicker">Source Manager</span>
+                <h2>{editingId ? 'Edit source' : 'Add source'}</h2>
+              </div>
+
+              <button
+                type="button"
+                className="source-editor-close"
+                onClick={closeForm}
+                aria-label="Close"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <label>
+              <span>Name</span>
+              <input
+                required
+                name="name"
+                value={form.name}
+                onChange={updateField}
+                placeholder="MacRumors"
+              />
+            </label>
+
+            <label>
+              <span>RSS feed URL</span>
+              <input
+                required
+                type="url"
+                name="feed_url"
+                value={form.feed_url}
+                onChange={updateField}
+                placeholder="https://example.com/feed.xml"
+              />
+            </label>
+
+            <label>
+              <span>Site URL</span>
+              <input
+                type="url"
+                name="site_url"
+                value={form.site_url}
+                onChange={updateField}
+                placeholder="https://example.com"
+              />
+            </label>
+
+            <div className="source-editor-row">
+              <label>
+                <span>Default category</span>
+                <select
+                  name="category"
+                  value={form.category}
+                  onChange={updateField}
+                >
+                  <option value="technology">Tech</option>
+                  <option value="tv">TV</option>
+                  <option value="movies">Movies</option>
+                  <option value="comics">Comics</option>
+                  <option value="games">Games</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Poll interval</span>
+                <select
+                  name="poll_interval"
+                  value={form.poll_interval}
+                  onChange={updateField}
+                >
+                  <option value="5">5 minutes</option>
+                  <option value="10">10 minutes</option>
+                  <option value="15">15 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                  <option value="180">3 hours</option>
+                  <option value="360">6 hours</option>
+                </select>
+              </label>
+            </div>
+
+            {editingId && (
+              <label className="source-enabled-toggle">
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  checked={form.enabled}
+                  onChange={updateField}
+                />
+                <span>Source enabled</span>
+              </label>
+            )}
+
+            <div className="source-editor-actions">
+              <button
+                type="button"
+                onClick={closeForm}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="is-primary"
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Save Source'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CreateView() {
   return (
     <div className="app-view">
@@ -929,7 +1884,13 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
   )
 }
 
-function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
+function VibeMenu({
+  open,
+  activeApp,
+  onClose,
+  onNavigate,
+  onSearch,
+}) {
   if (!open) return null
 
   const menuApps = [
@@ -946,15 +1907,23 @@ function VibeMenu({ open, activeApp, onClose, onNavigate, onSearch }) {
   }
 
   return (
-    <div className="vibe-menu-popover" role="menu" aria-label="Vibe navigation">
+    <div
+      className="vibe-menu-popover"
+      role="menu"
+      aria-label="Vibe navigation"
+    >
       {menuApps.map(({ id, label, Icon }) => (
         <button
           type="button"
           key={id}
-          className={activeApp === id ? 'is-active' : ''}
+          className={
+            activeApp === id ? 'is-active' : ''
+          }
           onClick={() => go(id)}
           role="menuitem"
-          aria-current={activeApp === id ? 'page' : undefined}
+          aria-current={
+            activeApp === id ? 'page' : undefined
+          }
         >
           <Icon size={20} strokeWidth={1.7} />
           <span>{label}</span>
@@ -1001,10 +1970,15 @@ function readDeskSignals() {
 
 function StudioApp() {
   const [activeApp, setActiveApp] = useState('home')
+  const [signalSection, setSignalSection] = useState('digest')
+  const [signalFilters, setSignalFilters] = useState({
+    ...DEFAULT_SIGNAL_FILTERS,
+  })
   const [signals, setSignals] = useState({ status: 'loading', data: [] })
   const [dashboard, setDashboard] = useState({ status: 'loading', data: null })
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuAnchorRef = useRef(null)
   const [selectedSignalId, setSelectedSignalId] = useState(null)
   const [deskSignals, setDeskSignals] = useState(readDeskSignals)
   const [refreshState, setRefreshState] = useState({
@@ -1044,6 +2018,31 @@ function StudioApp() {
       JSON.stringify(deskSignals),
     )
   }, [deskSignals])
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+
+    function handleOutsidePointer(event) {
+      if (
+        menuAnchorRef.current &&
+        !menuAnchorRef.current.contains(event.target)
+      ) {
+        setMenuOpen(false)
+      }
+    }
+
+    document.addEventListener(
+      'pointerdown',
+      handleOutsidePointer,
+    )
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        handleOutsidePointer,
+      )
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     if (
@@ -1109,13 +2108,32 @@ function StudioApp() {
   }, [])
 
   function navigate(target) {
+    if (target === 'signal:sources') {
+      setSignalSection('sources')
+      setActiveApp('signal')
+      setMenuOpen(false)
+      return
+    }
+
+    if (target === 'signal:digest') {
+      setSignalSection('digest')
+      setActiveApp('signal')
+      setMenuOpen(false)
+      return
+    }
+
     const next = target === 'settings' ? 'home' : target
+
+    if (next === 'signal') {
+      setSignalSection('digest')
+    }
+
     setActiveApp(next)
     setMenuOpen(false)
   }
 
   async function handleManualRefresh() {
-    if (['requesting', 'PENDING', 'CLAIMED'].includes(refreshState.status)) {
+    if (refreshState.status === 'requesting') {
       return
     }
 
@@ -1126,22 +2144,20 @@ function StudioApp() {
     })
 
     try {
-      const request = await requestManualRefresh()
+      await refreshNativeSignal()
 
       setRefreshState({
-        status: request.status,
-        requestId: request.request_id,
-        message: request.error_message,
+        status: 'COMPLETE',
+        requestId: null,
+        message: null,
       })
 
-      if (request.status === 'COMPLETE') {
-        await loadSignalData()
-      }
+      await loadSignalData()
     } catch (error) {
       setRefreshState({
         status: 'FAILED',
         requestId: null,
-        message: error?.message || 'Manual refresh is unavailable.',
+        message: error?.message || 'Native Signal refresh is unavailable.',
       })
     }
   }
@@ -1163,6 +2179,25 @@ function StudioApp() {
       ]
     })
   }
+
+  const signalSourceOptions = useMemo(
+    () => Array.from(
+      new Set(
+        signals.data
+          .map(signalSourceName)
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b)),
+    [signals.data],
+  )
+
+  const filteredSignalData = useMemo(
+    () => filterSignalData(
+      signals.data,
+      signalFilters,
+    ),
+    [signals.data, signalFilters],
+  )
 
   const leaders = dashboard.data?.top_by_category ||
     topByCategoryFromSignals(signals.data)
@@ -1187,7 +2222,7 @@ function StudioApp() {
       </div>
 
       <header className="os-topbar">
-        <div className="vibe-menu-anchor">
+        <div className="vibe-menu-anchor" ref={menuAnchorRef}>
           <button
             type="button"
             className={`vibe-button${menuOpen ? ' is-open' : ''}`}
@@ -1228,6 +2263,18 @@ function StudioApp() {
         </button>
       </header>
 
+      {activeApp === 'signal' && (
+        <SignalRibbon
+          section={signalSection}
+          onSectionChange={setSignalSection}
+          filters={signalFilters}
+          onFiltersChange={setSignalFilters}
+          sourceOptions={signalSourceOptions}
+          onRefresh={handleManualRefresh}
+          refreshState={refreshState}
+        />
+      )}
+
       <main className="os-content">
         {activeApp === 'home' && (
           <HomeView
@@ -1239,16 +2286,16 @@ function StudioApp() {
         )}
 
         {activeApp === 'signal' && (
-          <SignalView
-            signals={signals.data}
+          <SignalWorkspace
+            section={signalSection}
+            signals={filteredSignalData}
             status={signals.status}
             dashboard={dashboard.data}
             refreshState={refreshState}
-            onRefresh={handleManualRefresh}
+            filters={signalFilters}
             onPreview={setSelectedSignalId}
           />
         )}
-
         {activeApp === 'create' && <CreateView />}
         {activeApp === 'desk' && <DeskView signalItems={deskSignals} />}
         {activeApp === 'library' && <LibraryView />}

@@ -63,6 +63,11 @@ export default defineConfig(({ command }) => {
         'jamess-mac-mini.taila7026b.ts.net',
       ],
       proxy: {
+        '/signal-api': {
+          target: 'http://127.0.0.1:8082',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/signal-api/, '/api/v1'),
+        },
         '/api': {
           target: 'https://hub.thegeek.guide',
           changeOrigin: true,

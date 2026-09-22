@@ -25,6 +25,7 @@ export const APP_DEFINITIONS = [
 export const COMMANDS = [
   { command: '/home', label: 'Go Home', action: 'home' },
   { command: '/signal', label: 'Open Signal', action: 'signal' },
+  { command: '/sources', label: 'Open Sources', action: 'signal:sources' },
   { command: '/create', label: 'Open Create', action: 'create' },
   { command: '/desk', label: 'Open Desk', action: 'desk' },
   { command: '/library', label: 'Open Library', action: 'library' },
