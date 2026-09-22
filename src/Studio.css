@@ -112,9 +112,11 @@
 
 /* Single Studio navigation bar */
 .os-topbar {
-  position: sticky;
-  z-index: 40;
+  position: fixed;
+  z-index: 80;
   top: 0;
+  right: 0;
+  left: 0;
   display: grid;
   grid-template-columns: minmax(52px, 1fr) auto minmax(52px, 1fr);
   align-items: center;
@@ -250,14 +252,6 @@
   animation: system-menu-in .14s ease-out;
 }
 
-.menu-section-label {
-  padding: 9px 11px 7px;
-  color: #7b8091;
-  font: 650 12px/1 var(--mono);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
 .vibe-menu-popover button {
   display: grid;
   width: 100%;
@@ -316,7 +310,7 @@
   z-index: 2;
   width: min(calc(100% - 56px), 1180px);
   margin: 0 auto;
-  padding: clamp(30px, 5vw, 60px) 0 96px;
+  padding: calc(66px + clamp(30px, 5vw, 60px)) 0 96px;
 }
 
 .home-view,
@@ -1094,38 +1088,9 @@
   font-size: 15px;
 }
 
-.rank-pill {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 1px solid currentColor;
-  border-radius: 10px;
-  color: #777c8e;
-  font: 700 13px/1 var(--mono);
-}
-
-.rank-s { color: var(--magenta); }
-.rank-a { color: var(--purple); }
-.rank-b { color: var(--cyan); }
-.rank-c { color: #7892ff; }
-.rank-d { color: #8d86a0; }
-.rank-e { color: #777a88; }
-.rank-f { color: #61646f; }
-
 /* App pages */
 .app-view-heading {
   max-width: 760px;
-}
-
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
-  padding: 0 8px;
-  color: #a1a5b4;
-  font-size: 14px;
 }
 
 .app-kicker {
@@ -1146,34 +1111,17 @@
   overflow: hidden;
 }
 
-.full-signal-row {
-  display: grid;
-  grid-template-columns: 24px 32px minmax(0, 1fr);
-  gap: 13px;
-  align-items: start;
-  min-height: 76px;
-  padding: 18px 22px;
-  border-bottom: 1px solid rgba(117, 121, 147, .14);
-}
-
-.full-signal-row:last-child {
-  border-bottom: 0;
-}
-
-.full-signal-row > div,
 .desk-row > div {
   min-width: 0;
   display: grid;
   gap: 7px;
 }
 
-.full-signal-row small,
 .desk-row small {
   color: #9498a8;
   font: 13px/1.5 var(--mono);
 }
 
-.full-signal-row b,
 .desk-row b {
   color: #e2dfe6;
   font-size: 17px;
@@ -1442,10 +1390,6 @@
     width: min(calc(100% - 28px), 760px);
   }
 
-  .home-hero {
-    grid-template-columns: minmax(0, 1fr) 180px;
-  }
-
   .widget-board {
     grid-template-columns: 1fr;
   }
@@ -1635,7 +1579,7 @@
 
   .os-content {
     width: min(calc(100% - 34px), 600px);
-    padding: 28px 0 54px;
+    padding: 90px 0 54px;
   }
 
   .home-view,
@@ -1724,7 +1668,7 @@
 
   .os-content {
     width: min(calc(100% - 36px), 940px);
-    padding: 18px 0 34px;
+    padding: 72px 0 34px;
   }
 
   .home-view,
