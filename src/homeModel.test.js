@@ -22,7 +22,7 @@ test('daily wisdom is stable for the same date', () => {
 test('slash commands filter by prefix', () => {
   assert.deepEqual(
     commandMatches('/s').map(({ command }) => command),
-    ['/signal', '/settings'],
+    ['/signal', '/sources', '/settings'],
   )
 })
 

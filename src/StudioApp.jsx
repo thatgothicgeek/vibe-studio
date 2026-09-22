@@ -49,6 +49,7 @@ import {
   createNativeSource,
   getNativeSignalStatus,
   getNativeSources,
+  nativeSignalManagementAvailable,
   refreshNativeSignal,
   refreshNativeSource,
   updateNativeSource,
@@ -464,32 +465,6 @@ function RefreshStatus({ dashboard, refreshState, nativeStatus }) {
   )
 }
 
-function CategoryFilter({ value, onChange }) {
-  return (
-    <div className="category-filter" aria-label="Filter Signal digest by category">
-      <button
-        type="button"
-        className={value === 'All' ? 'is-active' : ''}
-        onClick={() => onChange('All')}
-      >
-        All
-      </button>
-
-      {CATEGORY_ORDER.map((category) => (
-        <button
-          type="button"
-          key={category}
-          className={value === category ? 'is-active' : ''}
-          onClick={() => onChange(category)}
-        >
-          <CategoryIcon category={category} size={17} />
-          <span>{category}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function DigestCard({ signal, variant = 'standard', onPreview }) {
   return (
     <button
@@ -559,6 +534,7 @@ function SignalRibbon({
   sourceOptions,
   onRefresh,
   refreshState,
+  refreshAvailable,
 }) {
   const [navOpen, setNavOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
@@ -870,9 +846,16 @@ function SignalRibbon({
           type="button"
           className="ribbon-icon-button"
           onClick={onRefresh}
-          disabled={refreshing}
+          disabled={
+            refreshing ||
+            !refreshAvailable
+          }
           aria-label="Refresh Signal"
-          title="Refresh Signal"
+          title={
+            refreshAvailable
+              ? 'Refresh Signal'
+              : 'Hosted refresh will be enabled with the action bridge'
+          }
         >
           <IconRefresh
             size={18}
@@ -1010,10 +993,6 @@ function StoryPreview({
 
     const controller = new AbortController()
     let active = true
-
-    setResource({ status: 'loading', data: null })
-    setEditingCategory(false)
-    setCategoryState({ status: 'idle', message: null })
 
     fetchSignal(signalId, controller.signal)
       .then((data) => {
@@ -1446,16 +1425,22 @@ function SourcesView() {
         <div className="app-view-heading">
           <span className="app-kicker">Signal</span>
           <h1>Sources</h1>
-          <p>Manage where Signal listens and keep an eye on feed health.</p>
+          <p>
+            {nativeSignalManagementAvailable
+              ? 'Manage where Signal listens and keep an eye on feed health.'
+              : 'Monitor where Signal listens and keep an eye on feed health.'}
+          </p>
         </div>
 
-        <button
-          type="button"
-          className="sources-add-button"
-          onClick={openAdd}
-        >
-          + Add Source
-        </button>
+        {nativeSignalManagementAvailable && (
+          <button
+            type="button"
+            className="sources-add-button"
+            onClick={openAdd}
+          >
+            + Add Source
+          </button>
+        )}
       </div>
 
       <div className="sources-summary">
@@ -1529,7 +1514,11 @@ function SourcesView() {
 
               <div className="source-card-meta">
                 <span>{source.story_count} stories</span>
-                <span>Every {source.poll_interval} min</span>
+                <span>
+                  {source.tier
+                    ? `Tier ${source.tier}`
+                    : 'Unranked'}
+                </span>
                 <span>
                   Last success: {formatRefreshTime(source.last_success_at)}
                 </span>
@@ -1542,43 +1531,52 @@ function SourcesView() {
               )}
             </div>
 
-            <div className="source-card-actions">
-              <button
-                type="button"
-                onClick={() => refreshSource(source)}
-                disabled={!source.enabled || refreshingId !== null}
-              >
-                <IconRefresh
-                  size={17}
-                  className={
-                    refreshingId === source.id
-                      ? 'is-spinning'
-                      : undefined
+            {nativeSignalManagementAvailable && (
+              <div className="source-card-actions">
+                <button
+                  type="button"
+                  onClick={() => refreshSource(source)}
+                  disabled={
+                    !source.enabled ||
+                    refreshingId !== null
                   }
-                />
-                {refreshingId === source.id ? 'Refreshing' : 'Refresh'}
-              </button>
+                >
+                  <IconRefresh
+                    size={17}
+                    className={
+                      refreshingId === source.id
+                        ? 'is-spinning'
+                        : undefined
+                    }
+                  />
+                  {refreshingId === source.id
+                    ? 'Refreshing'
+                    : 'Refresh'}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => openEdit(source)}
-              >
-                <IconEdit size={17} />
-                Edit
-              </button>
+                <button
+                  type="button"
+                  onClick={() => openEdit(source)}
+                >
+                  <IconEdit size={17} />
+                  Edit
+                </button>
 
-              <button
-                type="button"
-                onClick={() => toggleSource(source)}
-              >
-                {source.enabled ? 'Disable' : 'Enable'}
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSource(source)}
+                >
+                  {source.enabled
+                    ? 'Disable'
+                    : 'Enable'}
+                </button>
+              </div>
+            )}
           </article>
         ))}
       </div>
 
-      {formOpen && (
+      {nativeSignalManagementAvailable && formOpen && (
         <div className="source-editor-layer">
           <button
             type="button"
@@ -1796,10 +1794,6 @@ function LibraryView() {
 function SearchOverlay({ open, onClose, signals, onNavigate }) {
   const [query, setQuery] = useState('')
 
-  useEffect(() => {
-    if (!open) setQuery('')
-  }, [open])
-
   const commands = useMemo(() => commandMatches(query), [query])
   const results = useMemo(
     () => searchItems(query, signals, WORK_PREVIEW),
@@ -1808,14 +1802,19 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
 
   if (!open) return null
 
+  function closeOverlay() {
+    setQuery('')
+    onClose()
+  }
+
   function handleCommand(command) {
     onNavigate(command.action)
-    onClose()
+    closeOverlay()
   }
 
   return (
     <div className="spotlight-layer" role="dialog" aria-modal="true" aria-label="Search Vibe">
-      <button type="button" className="spotlight-scrim" onClick={onClose} aria-label="Close search" />
+      <button type="button" className="spotlight-scrim" onClick={closeOverlay} aria-label="Close search" />
 
       <section className="spotlight">
         <div className="spotlight-input-wrap">
@@ -1828,7 +1827,7 @@ function SearchOverlay({ open, onClose, signals, onNavigate }) {
             autoComplete="off"
             spellCheck="false"
           />
-          <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>
+          <button type="button" onClick={closeOverlay} aria-label="Close"><X size={18} /></button>
         </div>
 
         {query.startsWith('/') && (
@@ -2008,8 +2007,15 @@ function StudioApp() {
 
   useEffect(() => {
     const controller = new AbortController()
-    loadSignalData(controller.signal)
-    return () => controller.abort()
+
+    const timer = window.setTimeout(() => {
+      loadSignalData(controller.signal)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
   }, [loadSignalData])
 
   useEffect(() => {
@@ -2272,6 +2278,9 @@ function StudioApp() {
           sourceOptions={signalSourceOptions}
           onRefresh={handleManualRefresh}
           refreshState={refreshState}
+          refreshAvailable={
+            nativeSignalManagementAvailable
+          }
         />
       )}
 
@@ -2315,6 +2324,7 @@ function StudioApp() {
       />
 
       <StoryPreview
+        key={selectedSignalId || 'closed'}
         signalId={selectedSignalId}
         onClose={() => setSelectedSignalId(null)}
         onSendToDesk={sendSignalToDesk}

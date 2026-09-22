@@ -90,12 +90,13 @@ test(
       options = {},
     ) =>
       fetch(base + path, {
+        ...options,
         headers: {
           Cookie: 'session=ok',
           ...options.headers,
         },
-        redirect: 'manual',
-        ...options,
+        redirect:
+          options.redirect ?? 'manual',
       })
 
     const anonymousStudio = await fetch(

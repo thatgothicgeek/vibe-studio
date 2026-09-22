@@ -57,10 +57,9 @@ export function commandMatches(query) {
 
   if (!normalized.startsWith('/')) return []
 
-  return COMMANDS.filter(({ command, label }) => (
-    command.startsWith(normalized) ||
-    label.toLowerCase().includes(normalized.slice(1))
-  ))
+  return COMMANDS.filter(({ command }) =>
+    command.startsWith(normalized),
+  )
 }
 
 export function searchItems(query, signals = [], work = []) {

@@ -3,8 +3,14 @@ const isObject = (value) =>
   typeof value === 'object' &&
   !Array.isArray(value)
 
-async function signalRequest(path, options = {}) {
-  const response = await fetch(`/signal-api${path}`, {
+const localNative =
+  import.meta.env?.DEV === true
+
+export const nativeSignalManagementAvailable =
+  localNative
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, {
     cache: 'no-store',
     redirect: 'error',
     headers: {
@@ -20,16 +26,61 @@ async function signalRequest(path, options = {}) {
       .get('content-type')
       ?.includes('application/json')
   ) {
-    throw new Error(`Signal API unavailable: ${response.status}`)
+    throw new Error(
+      `Signal API unavailable: ${response.status}`,
+    )
   }
 
   return response.json()
 }
 
+function nativeReadUrl(
+  localPath,
+  hostedPath,
+) {
+  return localNative
+    ? `/signal-api${localPath}`
+    : `/api/native-signal${hostedPath}`
+}
+
+async function nativeReadRequest(
+  localPath,
+  hostedPath,
+  options = {},
+) {
+  return requestJson(
+    nativeReadUrl(
+      localPath,
+      hostedPath,
+    ),
+    options,
+  )
+}
+
+async function localNativeRequest(
+  path,
+  options = {},
+) {
+  if (!nativeSignalManagementAvailable) {
+    throw new Error(
+      'Native Signal management is not yet enabled in hosted Studio.',
+    )
+  }
+
+  return requestJson(
+    `/signal-api${path}`,
+    options,
+  )
+}
+
 export async function getNativeSignalStatus(signal) {
-  const data = await signalRequest('/signal/status/', {
-    signal,
-  })
+  const data = await nativeReadRequest(
+    '/signal/status/',
+    '/status',
+    {
+      signal,
+    },
+  )
 
   if (
     !isObject(data) ||
@@ -37,23 +88,31 @@ export async function getNativeSignalStatus(signal) {
     !isObject(data.sources) ||
     !isObject(data.stories)
   ) {
-    throw new Error('Invalid Signal status response')
+    throw new Error(
+      'Invalid Signal status response',
+    )
   }
 
   return data
 }
 
 export async function getNativeSources(signal) {
-  const data = await signalRequest('/sources/', {
-    signal,
-  })
+  const data = await nativeReadRequest(
+    '/sources/',
+    '/sources',
+    {
+      signal,
+    },
+  )
 
   if (
     !isObject(data) ||
     data.status !== 'ok' ||
     !Array.isArray(data.sources)
   ) {
-    throw new Error('Invalid Signal sources response')
+    throw new Error(
+      'Invalid Signal sources response',
+    )
   }
 
   return data
@@ -70,9 +129,12 @@ export async function getNativeStories({
       ? limit
       : 20
 
-  const data = await signalRequest(
+  const data = await nativeReadRequest(
     `/stories/?limit=${safeLimit}`,
-    { signal },
+    `/stories?limit=${safeLimit}`,
+    {
+      signal,
+    },
   )
 
   if (
@@ -80,51 +142,66 @@ export async function getNativeStories({
     data.status !== 'ok' ||
     !Array.isArray(data.stories)
   ) {
-    throw new Error('Invalid Signal stories response')
+    throw new Error(
+      'Invalid Signal stories response',
+    )
   }
 
   return data
 }
 
 export async function refreshNativeSignal(signal) {
-  const data = await signalRequest('/signal/refresh/', {
-    method: 'POST',
-    signal,
-  })
+  const data = await localNativeRequest(
+    '/signal/refresh/',
+    {
+      method: 'POST',
+      signal,
+    },
+  )
 
   if (
     !isObject(data) ||
     !['ready', 'warning'].includes(data.status) ||
     !isObject(data.totals)
   ) {
-    throw new Error('Invalid Signal refresh response')
+    throw new Error(
+      'Invalid Signal refresh response',
+    )
   }
 
   return data
 }
 
 export async function createNativeSource(source) {
-  const data = await signalRequest('/sources/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  const data = await localNativeRequest(
+    '/sources/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(source),
     },
-    body: JSON.stringify(source),
-  })
+  )
 
   if (
     !isObject(data) ||
     data.status !== 'ok' ||
     !isObject(data.source)
   ) {
-    throw new Error('Invalid source creation response')
+    throw new Error(
+      'Invalid source creation response',
+    )
   }
 
   return data.source
 }
 
-export async function updateNativeSource(id, source) {
-  const data = await signalRequest(
+export async function updateNativeSource(
+  id,
+  source,
+) {
+  const data = await localNativeRequest(
     `/sources/?id=${encodeURIComponent(id)}`,
     {
       method: 'PATCH',
@@ -140,14 +217,16 @@ export async function updateNativeSource(id, source) {
     data.status !== 'ok' ||
     !isObject(data.source)
   ) {
-    throw new Error('Invalid source update response')
+    throw new Error(
+      'Invalid source update response',
+    )
   }
 
   return data.source
 }
 
 export async function refreshNativeSource(id) {
-  const data = await signalRequest(
+  const data = await localNativeRequest(
     `/sources/refresh/?id=${encodeURIComponent(id)}`,
     {
       method: 'POST',
@@ -159,8 +238,10 @@ export async function refreshNativeSource(id) {
     data.status !== 'ok' ||
     !isObject(data.source)
   ) {
-    throw new Error('Invalid source refresh response')
+    throw new Error(
+      'Invalid source refresh response',
+    )
   }
 
-  return data
+  return data.source
 }

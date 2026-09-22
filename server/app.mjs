@@ -16,7 +16,14 @@ const mime = {
 }
 
 const readRoute = path =>
-  ['/api/dashboard', '/api/health', '/api/signals'].includes(path) ||
+  [
+    '/api/dashboard',
+    '/api/health',
+    '/api/signals',
+    '/api/native-signal/status',
+    '/api/native-signal/sources',
+    '/api/native-signal/stories',
+  ].includes(path) ||
   /^\/api\/signals\/[^/]+$/.test(path) ||
   /^\/api\/actions\/refresh\/[^/]+$/.test(path)
 
