@@ -2574,3 +2574,47 @@
     width: auto;
   }
 }
+
+/* Keep the Signal sub-navigation attached below the fixed Studio header. */
+.signal-app-ribbon {
+  position: sticky;
+  top: 66px;
+  z-index: 70;
+}
+
+@media (max-width: 640px) {
+  .signal-app-ribbon {
+    top: max(
+      62px,
+      calc(env(safe-area-inset-top) + 44px)
+    );
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .signal-app-ribbon {
+    top: 54px;
+  }
+}
+
+/* Keep the Signal sub-navigation attached below the fixed Studio header. */
+.signal-app-ribbon {
+  position: sticky;
+  top: 66px;
+  z-index: 70;
+}
+
+@media (max-width: 640px) {
+  .signal-app-ribbon {
+    top: max(
+      62px,
+      calc(env(safe-area-inset-top) + 44px)
+    );
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .signal-app-ribbon {
+    top: 54px;
+  }
+}
